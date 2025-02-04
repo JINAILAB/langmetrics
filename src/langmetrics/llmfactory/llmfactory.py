@@ -2,6 +2,7 @@ from langmetrics.config import ModelConfig, NaverModelConfig
 import os
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from langchain_deepseek import ChatDeepSeek
 from langchain_community.chat_models import ChatClovaX
 from .base_factory import BaseFactory
 from typing import Union
@@ -43,6 +44,16 @@ class NaverFactory(BaseFactory):
             max_tokens=config.max_tokens
         )
 
+class DeepseekFactory(BaseFactory):
+    def create_llm(self, config: ModelConfig, temperature: float) -> ChatOpenAI:
+        return ChatDeepSeek(
+            temperature=temperature,
+            model=config.model_name,
+            base_url=config.api_base,
+            api_key=config.api_key,
+            seed=config.seed,
+            max_tokens=config.max_tokens
+        )
 
 
 class LLMFactory:
@@ -95,7 +106,7 @@ class LLMFactory:
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             max_tokens=8000,
             seed=66,
-            provider="openai"
+            provider="deepseek"
         ),
         
         "deepseek-reasoner": ModelConfig(
@@ -104,7 +115,7 @@ class LLMFactory:
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             max_tokens=8000,
             seed=66,
-            provider="openai"
+            provider="deepseek"
         ),
         
         "claude-3.5-sonnet": ModelConfig(
@@ -139,7 +150,8 @@ class LLMFactory:
     _factories = {
         "openai": OpenAIFactory(),
         "anthropic": AnthropicFactory(),
-        "naver": NaverFactory()
+        "naver": NaverFactory(),
+        "deepseek" : DeepseekFactory()
     }
     
     @classmethod

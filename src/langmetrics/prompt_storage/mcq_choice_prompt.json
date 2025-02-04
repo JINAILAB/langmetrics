@@ -1,7 +1,7 @@
 {
   "system_messages": {
-    "en": "You are an expert in multiple-choice questions.",
-    "ko": "당신은 객관식 문제 전문가입니다."
+    "en": "You are helpful AI assistant.",
+    "ko": "당신은 유능한 전문가입니다."
   },
   "reasoning": {
     "en": "Please solve the following multiple-choice question.\nProvide your reasoning and answer with only the letter (A, B, C, D, etc.).\n\n**\nIMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning. \nExample JSON:\n{{\n    \"reasoning\": \"<your_reasoning. Think step by step deeply.>. So the answer is <your answer>\"\n    \"answer\": \"<your_answer>\"\n}}\n**\n\nQuestion:\n{question}\n\nChoices:\n{choices}\n\nJSON:\n",
