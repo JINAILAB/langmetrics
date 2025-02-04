@@ -1,4 +1,4 @@
-from langmetrics.config import ModelConfig, NaverModelConfig, CustomModelConfig
+from langmetrics.config import ModelConfig, NaverModelConfig, LocalModelConfig
 import os
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -12,14 +12,15 @@ from sglang.utils import (
     terminate_process,
 )
 
-class CustomChatOpenAI(ChatOpenAI):
+class LocalChatOpenAI(ChatOpenAI):
+    """shutdown을 지원"""
     def __init__(self, *args, server_process=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.server_process = server_process
 
-    def shutdown_server(self):
+    def shutdown(self):
         if self.server_process:
-            self.server_process.terminate() 
+            terminate_process(self.server_process)
 
 
 class OpenAIFactory(BaseFactory):
@@ -74,8 +75,8 @@ class DeepseekFactory(BaseFactory):
             **kwargs
         )
 
-class CustomLLMFactory(BaseFactory):
-    def create_llm(self, config: CustomModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+class LocalLLMFactory(BaseFactory):
+    def create_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         print('waiting llm server boot')
         if config.dp == 1:
             server_process = execute_shell_command(
@@ -94,8 +95,8 @@ class CustomLLMFactory(BaseFactory):
                     
         wait_for_server(f"http://localhost:{config.port}")
         
-        # CustomChatOpenAI는 shutdown_server를 지원함.
-        llm = CustomChatOpenAI(
+        # LocalChatOpenAI는 shutdown_server를 지원함.
+        llm = LocalChatOpenAI(
             temperature=temperature,
             model=config.model_name,
             base_url=f"http://localhost:{config.port}/v1",
@@ -206,7 +207,8 @@ class LLMFactory:
         "openai": OpenAIFactory(),
         "anthropic": AnthropicFactory(),
         "naver": NaverFactory(),
-        "deepseek" : DeepseekFactory()
+        "deepseek" : DeepseekFactory(),
+        "local" : LocalLLMFactory(),
     }
     
     @classmethod
@@ -249,7 +251,7 @@ class LLMFactory:
         return cls._factories[provider]
 
     @classmethod
-    def create_llm(cls, model_name_or_config: str | ModelConfig, temperature: float = 0.7) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX]:
+    def create_llm(cls, model_name_or_config: str | ModelConfig | LocalModelConfig, temperature: float = 0.7) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX]:
         """LLM 인스턴스를 생성하는 통합 메서드
         
         등록된 모델명이나 커스텀 설정으로 LLM 인스턴스를 생성합니다.
@@ -278,6 +280,10 @@ class LLMFactory:
             else:
                 # DEFAULT_CONFIGS에 없는 경우 ValueError 발생
                 raise ValueError(f"Model '{model_name_or_config}' not found in DEFAULT_CONFIGS. Please provide a ModelConfig instance instead.")
+        # LocalModelConfig를 받을 경우 customllm 사용
+        elif isinstance(config, LocalModelConfig):
+            factory = cls._get_factory('local')
+            return factory.create_llm(config, temperature)
         else:
             # ModelConfig 인스턴스인 경우 직접 사용
             config = model_name_or_config

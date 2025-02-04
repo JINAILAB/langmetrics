@@ -37,7 +37,7 @@ class NaverModelConfig(ModelConfig):
     apigw_api_key: str = ""
     
 @dataclass
-class CustomModelConfig:
+class LocalModelConfig:
     model_name: str
     port : int
     max_tokens: int = 4096
