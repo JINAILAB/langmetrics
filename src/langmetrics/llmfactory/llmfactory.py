@@ -1,4 +1,4 @@
-from langmetrics.config import ModelConfig, NaverModelConfig
+from langmetrics.config import ModelConfig, NaverModelConfig, CustomModelConfig
 import os
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -6,33 +6,50 @@ from langchain_deepseek import ChatDeepSeek
 from langchain_community.chat_models import ChatClovaX
 from .base_factory import BaseFactory
 from typing import Union
+from sglang.utils import (
+    execute_shell_command,
+    wait_for_server,
+    terminate_process,
+)
+
+class CustomChatOpenAI(ChatOpenAI):
+    def __init__(self, *args, server_process=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.server_process = server_process
+
+    def shutdown_server(self):
+        if self.server_process:
+            self.server_process.terminate() 
+
 
 class OpenAIFactory(BaseFactory):
     """OpenAI LLM 생성 팩토리"""
-    def create_llm(self, config: ModelConfig, temperature: float) -> ChatOpenAI:
+    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         return ChatOpenAI(
             temperature=temperature,
             model=config.model_name,
             base_url=config.api_base,
             api_key=config.api_key,
             seed=config.seed,
-            max_tokens=config.max_tokens
+            max_tokens=config.max_tokens,
+            **kwargs
         )
 
 class AnthropicFactory(BaseFactory):
     """Anthropic(Claude) LLM 생성 팩토리"""
-    def create_llm(self, config: ModelConfig, temperature: float) -> ChatAnthropic:
+    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatAnthropic:
         return ChatAnthropic(
             temperature=temperature,
             model=config.model_name,
             api_key=config.api_key,
             seed=config.seed,
-            max_tokens_to_sample=config.max_tokens
+            max_tokens_to_sample=config.max_tokens,
+            **kwargs
         )
 
 class NaverFactory(BaseFactory):
     """Naver LLM 생성 팩토리"""
-    def create_llm(self, config: NaverModelConfig, temperature: float) -> ChatClovaX:
+    def create_llm(self, config: NaverModelConfig, temperature: float, **kwargs) -> ChatClovaX:
         # Naver API 클라이언트 구현
         # 실제 Naver Clova API 사용을 위한 구현 필요
         return ChatClovaX(
@@ -41,19 +58,57 @@ class NaverFactory(BaseFactory):
             apigw_api_key=config.apigw_api_key,
             api_key=config.api_key,
             seed=config.seed,
-            max_tokens=config.max_tokens
+            max_tokens=config.max_tokens,
+            **kwargs
         )
 
 class DeepseekFactory(BaseFactory):
-    def create_llm(self, config: ModelConfig, temperature: float) -> ChatOpenAI:
+    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         return ChatDeepSeek(
             temperature=temperature,
             model=config.model_name,
             base_url=config.api_base,
             api_key=config.api_key,
             seed=config.seed,
-            max_tokens=config.max_tokens
+            max_tokens=config.max_tokens,
+            **kwargs
         )
+
+class CustomLLMFactory(BaseFactory):
+    def create_llm(self, config: CustomModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+        print('waiting llm server boot')
+        if config.dp == 1:
+            server_process = execute_shell_command(
+        f"""
+    CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang.launch_server --model-path {config.model_name} \
+    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp}
+    """
+    )
+        elif config.dp > 1:
+            server_process = execute_shell_command(
+        f"""
+    CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang_router.launch_server --model-path {config.model_name} \
+    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp}
+    """
+    )
+                    
+        wait_for_server(f"http://localhost:{config.port}")
+        
+        # CustomChatOpenAI는 shutdown_server를 지원함.
+        llm = CustomChatOpenAI(
+            temperature=temperature,
+            model=config.model_name,
+            base_url=f"http://localhost:{config.port}/v1",
+            api_key="EMPTY",
+            seed=config.seed,
+            max_tokens=config.max_tokens,
+            **kwargs,
+            server_process=server_process
+        )
+        return llm
+
+
+        
 
 
 class LLMFactory:

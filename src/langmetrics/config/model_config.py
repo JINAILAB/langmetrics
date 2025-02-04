@@ -36,6 +36,16 @@ class NaverModelConfig(ModelConfig):
         ncp_apigw_api_key (str): 네이버 클라우드 플랫폼 API Gateway 키"""
     apigw_api_key: str = ""
     
+@dataclass
+class CustomModelConfig:
+    model_name: str
+    port : int
+    max_tokens: int = 4096
+    gpus : str = "2,3"
+    dp : int = 1 # 증가시킬시 throughoutput 증가
+    tp : int = 2 # 모델 크기가 커서 VRAM이 더 필요할 때
+    
+    
 
 class BaseLLMFactory(ABC):
     """LLM 생성을 위한 추상 팩토리 클래스
