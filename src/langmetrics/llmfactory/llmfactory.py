@@ -1,4 +1,5 @@
 from langmetrics.config import ModelConfig, NaverModelConfig, LocalModelConfig
+from typing import Any, Optional
 import os
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -6,15 +7,16 @@ from langchain_deepseek import ChatDeepSeek
 from langchain_community.chat_models import ChatClovaX
 from .base_factory import BaseFactory
 from typing import Union
+from langmetrics.utils import execute_shell_command
 from sglang.utils import (
-    execute_shell_command,
     wait_for_server,
     terminate_process,
 )
 
 class LocalChatOpenAI(ChatOpenAI):
+    server_process: Optional[Any] = None  # 서버 프로세스용 필드 추가
     """shutdown을 지원"""
-    def __init__(self, *args, server_process=None, **kwargs):
+    def __init__(self, server_process=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.server_process = server_process
 
@@ -82,14 +84,16 @@ class LocalLLMFactory(BaseFactory):
             server_process = execute_shell_command(
         f"""
     CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang.launch_server --model-path {config.model_name} \
-    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp}
+    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp} --random-seed {config.seed} --mem-fraction-static {config.mem_fraction_static} \
+    --max-running-request {config.max_running_request}
     """
     )
         elif config.dp > 1:
             server_process = execute_shell_command(
         f"""
     CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang_router.launch_server --model-path {config.model_name} \
-    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp}
+    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp} --random-seed {config.seed} --mem-fraction-static {config.mem_fraction_static} \
+    --max-running-request {config.max_running_request}
     """
     )
                     
@@ -101,10 +105,9 @@ class LocalLLMFactory(BaseFactory):
             model=config.model_name,
             base_url=f"http://localhost:{config.port}/v1",
             api_key="EMPTY",
-            seed=config.seed,
             max_tokens=config.max_tokens,
+            server_process=server_process,
             **kwargs,
-            server_process=server_process
         )
         return llm
 
@@ -281,7 +284,8 @@ class LLMFactory:
                 # DEFAULT_CONFIGS에 없는 경우 ValueError 발생
                 raise ValueError(f"Model '{model_name_or_config}' not found in DEFAULT_CONFIGS. Please provide a ModelConfig instance instead.")
         # LocalModelConfig를 받을 경우 customllm 사용
-        elif isinstance(config, LocalModelConfig):
+        elif isinstance(model_name_or_config, LocalModelConfig):
+            config = model_name_or_config
             factory = cls._get_factory('local')
             return factory.create_llm(config, temperature)
         else:

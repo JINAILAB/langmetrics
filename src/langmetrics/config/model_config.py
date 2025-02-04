@@ -39,11 +39,15 @@ class NaverModelConfig(ModelConfig):
 @dataclass
 class LocalModelConfig:
     model_name: str
-    port : int
+    port : int = 30000
     max_tokens: int = 4096
     gpus : str = "2,3"
     dp : int = 1 # 증가시킬시 throughoutput 증가
     tp : int = 2 # 모델 크기가 커서 VRAM이 더 필요할 때
+    seed : int = 66
+    mem_fraction_static : float = 0.9 # KV cahce를 위해 사용될 메모리, outofmemory 시 줄일것
+    max_running_request : int = 1024 # 한 번에 최대로 돌릴 수 있는 max request 양
+    
     
     
 

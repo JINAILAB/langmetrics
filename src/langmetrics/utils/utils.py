@@ -4,6 +4,9 @@ from datetime import datetime
 from typing import Dict, Optional, Any
 import json
 import re
+import subprocess
+import sys
+
 
 class ResultFileHandler:
     """평가 결과 파일 처리를 위한 유틸리티 클래스"""
@@ -134,3 +137,25 @@ def save_json(data, file_path, indent=4, ensure_ascii=False):
         print(f"Successfully saved to {file_path}")
     except Exception as e:
         print(f"Error saving JSON: {e}")
+        
+        
+def execute_shell_command(command: str) -> subprocess.Popen:
+    """
+    Execute a shell command and return the process handle.
+
+    이 함수는 백슬래시로 이어진 줄바꿈(라인 컨티뉴에이션) 및 남은 백슬래시를 제거하고,
+    불필요한 공백을 정리하여 명령어를 실행합니다.
+
+    Args:
+        command: 실행할 셸 명령어 문자열 (백슬래시로 줄바꿈이 가능)
+
+    Returns:
+        subprocess.Popen: 실행된 명령어의 프로세스 핸들
+    """
+    # 백슬래시+줄바꿈을 공백으로 치환한 후, 남은 백슬래시도 모두 공백으로 치환
+    command = re.sub(r'\\\s*\n', ' ', command)
+    command = re.sub(r'\\', ' ', command)
+    # 연속된 공백을 하나의 공백으로 줄이고 양쪽 공백 제거
+    command = re.sub(r'\s+', ' ', command).strip()
+
+    return subprocess.Popen(command, shell=True, text=True, stderr=subprocess.STDOUT)
