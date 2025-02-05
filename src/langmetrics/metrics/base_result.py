@@ -5,28 +5,11 @@ from typing import Literal, Optional
 class EvaluationResult:
     """평가 결과를 저장하기 위한 데이터 클래스"""
     question: str
-    predicted: str
-    language : Literal['ko', 'en']
+    student_answer: str
     score : float
+    metadata : dict
+    reasoning : str
     
-    
-
-@dataclass
-class BCQResult(EvaluationResult):
-    """BCQ 평가 결과를 저장하기 위한 데이터 클래스"""
-    ground_truth : str
-    token_usage : Optional[int] = None
-
-    def to_dict(self) -> dict:
-        """결과를 딕셔너리로 변환"""
-        return {
-            "question": self.question,
-            "ground_truth": self.ground_truth,
-            "predicted": self.predicted,
-            "score": self.score,
-            "language" : self.language,
-            "token_usage" : self.token_usage,
-        }
 
 
 @dataclass
@@ -34,19 +17,25 @@ class MCQResult(EvaluationResult):
     """MCQ 평가 결과를 저장하기 위한 데이터 클래스"""
     ground_truth : str
     choice : str
-    reasoning : str
-    token_usage : Optional[int] = None
     
     def __str__(self) -> str:
-        result = '정답' if self.score == 1 else '오답'
+        result = '✅ 정답' if self.score == 1 else '❌ 오답'
+        
         """결과를 문자열로 변환하여 출력"""
-        return f"문제: {self.question}\n" \
-                f"선택지: {self.choice}\n" \
-                f"정답: {self.ground_truth}\n" \
-                f"결과: {result}\n" \
-                f"추론: {self.reasoning}\n" \
-                f"토큰 사용량: {self.token_usage}"
-                
+        return (
+            f"📝 문제: {self.question}\n"
+            f"\n"
+            f"🤔 LLM 답: {self.student_answer}\n"
+            f"📋 선택지: {self.choice}\n"
+            f"💡 정답: {self.ground_truth}\n"
+            f"\n"
+            f"📊 채점 결과: {result}\n"
+            f"\n"
+            f"💭 추론 과정:\n{self.reasoning}\n"
+            f"\n"
+            f"ℹ️ 메타데이터: {self.metadata}\n"
+            f"{'='*50}"
+        )
 
     def to_dict(self) -> dict:
         """결과를 딕셔너리로 변환"""
@@ -54,11 +43,10 @@ class MCQResult(EvaluationResult):
             "question": self.question,
             "choice" : self.choice,
             "ground_truth": self.ground_truth,
-            "predicted": self.predicted,
+            "student_answer": self.student_answer,
             "score": self.score,
-            "reasoning" : self.reasoning,
-            "language" : self.language,
-            "token_usage" : self.token_usage, 
+            "reasoninging" : self.reasoninging,
+            "metadata" : self.metadata, 
         }
         
     @classmethod
@@ -75,60 +63,16 @@ class MCQResult(EvaluationResult):
             question=data["question"],
             choice=data["choice"],
             ground_truth=data["ground_truth"],
-            predicted=data["predicted"],
+            student_answer=data["student_answer"],
             score=data["score"],
-            reasoning=data["reasoning"],
-            language=data["language"],
-            token_usage=data.get("token_usage")  # token_usage는 Optional이므로 get 메서드 사용
+            reasoning=data["reason"],
+            metadata=data["language"],
         )
-        
-@dataclass
-class OpenEndedResult(EvaluationResult):
-    """MCQ 평가 결과를 저장하기 위한 데이터 클래스"""
-    reason : str
-    evaluate_prompt : str
-    evaluate_prompt_type : str
-    token_usage : Optional[int] = None
-    
-    def to_dict(self) -> dict:
-        """결과를 딕셔너리로 변환"""
-        return {
-            "question": self.question,
-            "ground_truth": self.ground_truth,
-            "predicted": self.predicted,
-            "evaluate_prompt_type" : self.prompt_type,
-            "evaluate_prompt" : self.evaluate_prompt,
-            "reason": self.reason,
-            "score" : self.score,
-            "language" : self.language
-        }
-        
-@dataclass
-class MultiturnResult(EvaluationResult):
-    """MCQ 평가 결과를 저장하기 위한 데이터 클래스"""
-    reason : str
-    evalutate_prompt : str
-    evaluate_prompt_type : Literal['Multi-Turn', 'Recollection', 'Refinement', 'Follow-Up']
-    token_usage : Optional[int] = None
-    
-    def to_dict(self) -> dict:
-        """결과를 딕셔너리로 변환"""
-        return {
-            "question": self.question,
-            "ground_truth": self.ground_truth,
-            "predicted": self.predicted,
-            "evaluate_prompt_type" : self.prompt_type,
-            "evaluate_prompt" : self.evaluate_prompt,
-            "reason": self.reason,
-            "score" : self.score,
-            "language" : self.language
-        }
         
         
 @dataclass
 class JudgeResult(EvaluationResult):
     """MCQ 평가 결과를 저장하기 위한 데이터 클래스"""
-    reasoning : str
     token_usage : Optional[int] = None
     
     def __str__(self) -> str:
@@ -143,7 +87,7 @@ class JudgeResult(EvaluationResult):
         """결과를 딕셔너리로 변환"""
         return {
             "question": self.question,
-            "predicted": self.predicted,
+            "student_answer": self.student_answer,
             "score": self.score,
             "reasoning" : self.reasoning,
             "language" : self.language,
@@ -162,7 +106,7 @@ class JudgeResult(EvaluationResult):
         """
         return cls(
             question=data["question"],
-            predicted=data["predicted"],
+            student_answer=data["student_answer"],
             score=data["score"],
             reasoning=data["reasoning"],
             language=data["language"],
