@@ -547,7 +547,9 @@ class LLMDataset(BaseDataset[LLMTestCase]):
         if not isinstance(test_case, LLMTestCase):
             raise TypeError("Appended item must be an LLMTestCase instance")
         super().append(test_case)
-        
+    
+    
+    
 
 @dataclass
 class MCQDataset(BaseDataset[MCQTestCase]):
@@ -701,3 +703,5 @@ class MCQDataset(BaseDataset[MCQTestCase]):
         test_cases = [cls._convert_to_test_case(map_fields(item)) for item in dataset]
         
         return cls(test_cases=test_cases)
+    
+    

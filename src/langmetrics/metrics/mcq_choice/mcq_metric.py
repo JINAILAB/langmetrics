@@ -16,7 +16,7 @@ from langmetrics.metrics.base_result import MCQResult
 class MCQMetric(BaseMetric):
     def __init__(
         self,
-        answer_model : Union[ChatOpenAI, ChatAnthropic, ChatClovaX],
+        answer_model : Union[ChatOpenAI, ChatAnthropic, ChatClovaX] = None,
         verbose_mode: bool = False,
         template_language : Literal['ko', 'en'] = 'ko',
         generate_template_type : Literal['reasoning', 'only_answer'] = 'reasoning', 
@@ -166,47 +166,47 @@ class MCQMetric(BaseMetric):
         token_usage = None
         try:
             self._validate_testcase(case)
-            print('case validate 검증 완료')
             
             # 답변이 없는 경우 새로 생성
             if not case.output:
+                if self.answer_model is None:
+                    raise ValueError("output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
+                else:
+                    case_output = self._generate_answer_one_case(case)
+                    case.output = case_output.content
                 
-                case_output = self._generate_answer_one_case(case)
-                print(case_output.content)
-                case.output = case_output.content
-            
-                # Store token usage metrics in dictionary format
-                token_usage = {
-                    'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
-                    'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
-                    'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
-                }
-                    
-
-                # Parse JSON response and process results
-                try:
-                    parsed_output = trimAndLoadJson(case.output)
-                    parsed_output = {
-                        'answer': parsed_output.get('answer', ''),
-                        'reasoning': parsed_output.get('reasoning', '')
+                    # Store token usage metrics in dictionary format
+                    token_usage = {
+                        'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
+                        'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
+                        'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
                     }
-                except json.JSONDecodeError:
-                    if self.verbose_mode:
-                        print(f"Warning: JSON parsing failed. Raw output: {case.output}")
-                    parsed_output = {'answer': '', 'reasoning': ''}
+                        
 
-                # Process the output and store results
-                result = self._process_output(parsed_output, case)
-                case.output = result.get('answer', '')
-                case.reasoning = parsed_output.get('reasoning', '')
-                
-                # Print detailed information in verbose mode
-                if self.verbose_mode:
-                    print(f"Input: {case.input}")
-                    print(f"Generated answer: {case.output}")
-                    print(f"Expected answer: {case.expected_output}")
-                    print(f"Is correct: {case.output == case.expected_output}")
-                    print(f"Reasoning: {case.reasoning}")
+                    # Parse JSON response and process results
+                    try:
+                        parsed_output = trimAndLoadJson(case.output)
+                        parsed_output = {
+                            'answer': parsed_output.get('answer', ''),
+                            'reasoning': parsed_output.get('reasoning', '')
+                        }
+                    except json.JSONDecodeError:
+                        if self.verbose_mode:
+                            print(f"Warning: JSON parsing failed. Raw output: {case.output}")
+                        parsed_output = {'answer': '', 'reasoning': ''}
+
+                    # Process the output and store results
+                    result = self._process_output(parsed_output, case)
+                    case.output = result.get('answer', '')
+                    case.reasoning = parsed_output.get('reasoning', '')
+                    
+                    # Print detailed information in verbose mode
+                    if self.verbose_mode:
+                        print(f"Input: {case.input}")
+                        print(f"Generated answer: {case.output}")
+                        print(f"Expected answer: {case.expected_output}")
+                        print(f"Is correct: {case.output == case.expected_output}")
+                        print(f"Reasoning: {case.reasoning}")
                 
 
             return MCQResult(
@@ -243,42 +243,44 @@ class MCQMetric(BaseMetric):
             
             # 답변이 없는 경우 새로 생성
             if not case.output:
+                if self.answer_model is None:
+                    raise ValueError("output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
+                else:
+                    case_output = await self._a_generate_answer_one_case(case)
+                    case.output = case_output.content
                 
-                case_output = await self._a_generate_answer_one_case(case)
-                case.output = case_output.content
-            
-                # Store token usage metrics in dictionary format
-                token_usage = {
-                    'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
-                    'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
-                    'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
-                }
-                    
-
-                # Parse JSON response and process results
-                try:
-                    parsed_output = trimAndLoadJson(case.output)
-                    parsed_output = {
-                        'answer': parsed_output.get('answer', ''),
-                        'reasoning': parsed_output.get('reasoning', '')
+                    # Store token usage metrics in dictionary format
+                    token_usage = {
+                        'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
+                        'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
+                        'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
                     }
-                except json.JSONDecodeError:
-                    if self.verbose_mode:
-                        print(f"Warning: JSON parsing failed. Raw output: {case.output}")
-                    parsed_output = {'answer': '', 'reasoning': ''}
+                        
 
-                # Process the output and store results
-                result = self._process_output(parsed_output, case)
-                case.output = result.get('answer', '')
-                case.reasoning = parsed_output.get('reasoning', '')
-                
-                # Print detailed information in verbose mode
-                if self.verbose_mode:
-                    print(f"Input: {case.input}")
-                    print(f"Generated answer: {case.output}")
-                    print(f"Expected answer: {case.expected_output}")
-                    print(f"Is correct: {case.output == case.expected_output}")
-                    print(f"Reasoning: {case.reasoning}")
+                    # Parse JSON response and process results
+                    try:
+                        parsed_output = trimAndLoadJson(case.output)
+                        parsed_output = {
+                            'answer': parsed_output.get('answer', ''),
+                            'reasoning': parsed_output.get('reasoning', '')
+                        }
+                    except json.JSONDecodeError:
+                        if self.verbose_mode:
+                            print(f"Warning: JSON parsing failed. Raw output: {case.output}")
+                        parsed_output = {'answer': '', 'reasoning': ''}
+
+                    # Process the output and store results
+                    result = self._process_output(parsed_output, case)
+                    case.output = result.get('answer', '')
+                    case.reasoning = parsed_output.get('reasoning', '')
+                    
+                    # Print detailed information in verbose mode
+                    if self.verbose_mode:
+                        print(f"Input: {case.input}")
+                        print(f"Generated answer: {case.output}")
+                        print(f"Expected answer: {case.expected_output}")
+                        print(f"Is correct: {case.output == case.expected_output}")
+                        print(f"Reasoning: {case.reasoning}")
                 
 
             return MCQResult(

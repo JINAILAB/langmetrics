@@ -28,11 +28,18 @@ class BaseTemplate(ABC):
         """
         pass
     
-    @abstractmethod
     def get_prompt_for_answer(self) -> ChatPromptTemplate:
         """
-        답변을 위한 프롬프트를 반환하는 추상 메서드입니다.
-        자식 클래스에서 반드시 구현해야 합니다.
+        답변을 위한 프롬프트를 반환하는 메서드입니다.
+        
+        Returns:
+            ChatPromptTemplate: 형식화된 프롬프트 템플릿
+        """
+        pass
+    
+    def get_prompt_for_score(self) -> ChatPromptTemplate:
+        """
+        채점을 위한 프롬프트를 반환하는 메서드입니다.
         
         Returns:
             ChatPromptTemplate: 형식화된 프롬프트 템플릿

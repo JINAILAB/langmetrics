@@ -36,9 +36,9 @@ class ResultFileHandler:
         """새로운 평가 결과 저장"""
         results["evaluation_date"] = datetime.now().strftime("%Y-%m-%d")
         pd.DataFrame([results]).to_csv(
-            self.result_file, 
-            mode='a', 
-            header=False, 
+            self.result_file,
+            mode='a',
+            header=False,
             index=False
         )
 
@@ -116,7 +116,7 @@ def trimAndLoadJson(
         raise Exception(f"An unexpected error occurred while parsing JSON: {str(e)}") from e
     
     
-def load_prompts_from_json(file_path):
+def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 

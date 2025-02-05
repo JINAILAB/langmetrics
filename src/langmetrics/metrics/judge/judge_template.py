@@ -31,11 +31,7 @@ class JudgeTemplate(BaseTemplate):
         except json.JSONDecodeError:
             raise ValueError(f"Invalid JSON format in prompt template file at {json_path}")
 
-    def _initialize_messages(self) -> None:
-        self.system_message = SystemMessagePromptTemplate.from_template(
-            self._default_prompts['system_messages'][self.language]
-        )
-        
+    def _initialize_messages(self) -> None:        
         # Get category-specific template
         try:
             category_templates = self._default_prompts['category'][self.category]
@@ -45,11 +41,9 @@ class JudgeTemplate(BaseTemplate):
             raise ValueError(f"Invalid category or template type: {e}")
         
         
-        self.prompt = ChatPromptTemplate.from_messages(
-            [self.system_message, self.human_message]
-        )
+        self.prompt = ChatPromptTemplate.from_messages([self.human_message])
         
-    def get_prompt_for_judge(self) -> ChatPromptTemplate:
+    def get_prompt_for_score(self) -> ChatPromptTemplate:
         """
         언어에 따른 적절한 프롬프트를 반환합니다.
         
