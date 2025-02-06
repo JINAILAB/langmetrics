@@ -1,3 +1,3 @@
-from .dataset import MCQDataset, LLMDataset
+from .dataset import LLMDataset
 
-__all__ = ['MCQDataset', 'LLMDataset']
+__all__ = ['LLMDataset']

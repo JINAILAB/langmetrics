@@ -33,12 +33,10 @@ class JudgeMetric(BaseMetric):
         self.template_language = template_language
         self.generate_template_type = generate_template_type
         self.category = category
-
-        if judge_template is None:
-            self.template = JudgeTemplate(self.template_language, self.generate_template_type, self.category)
-        else:
-            self.template = judge_template
-
+        # template class
+        self.template = (JudgeTemplate(self.template_language, self.generate_template_type, self.category) 
+                        if judge_template is None else judge_template)
+        # judge를 위한 template string
         self.template_for_judge = self.template.get_prompt_for_score()
 
     def measure(
@@ -81,115 +79,127 @@ class JudgeMetric(BaseMetric):
             return [testcase]
         else:
             raise TypeError("Invalid input type. Expected LLMTestCase, List[LLMTestCase], or LLMDataset")
+        
+    def _process_generated_answer(self, case: LLMTestCase, response: AIMessage, evaluate_response: AIMessage) -> dict:
+        """
+        LLM 응답을 처리하여 JSON 파싱, 메타데이터 업데이트 및 결과 생성까지 수행합니다.
+        """
+        case.output = response.content
+        metadata = {'teacher_template_language': self.template_language}
+        metadata['student_model_name'] = response.response_metadata.get('model_name', '')
+        metadata['teacher_model_name'] = evaluate_response.response_metadata.get('model_name', '')
+        student_token_usage = response.response_metadata.get('token_usage', {})
+        metadata['student_token_usage'] = {
+            'completion_tokens': student_token_usage.get('completion_tokens'),
+            'prompt_tokens': student_token_usage.get('prompt_tokens'),
+            'total_tokens': student_token_usage.get('total_tokens')
+        }
+        teacher_token_usage = evaluate_response.response_metadata.get('token_usage', {})
+        metadata['teacher_token_usage'] = {
+            'completion_tokens': teacher_token_usage.get('completion_tokens'),
+            'prompt_tokens': teacher_token_usage.get('prompt_tokens'),
+            'total_tokens': teacher_token_usage.get('total_tokens')
+        }
+        
+        try:
+            parsed_output = trimAndLoadJson(evaluate_response.content)
+            parsed_output = {
+                'score': parsed_output.get('score', ''),
+                'reasoning': parsed_output.get('reasoning', '')
+            }
+        except json.JSONDecodeError:
+            if self.verbose_mode:
+                print(f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}")
+            parsed_output = {'answer': '', 'reasoning': ''}
+            metadata['error'] = f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}"
+        case.reasoning = parsed_output.get('reasoning', '')
+        
+        # verbose mode시 case 출력
+        self._log_process_info(case, evaluate_response)
+            
+        return JudgeResult(
+                question=getattr(case, 'input', ''),
+                student_answer=getattr(case, 'output', ''),
+                teacher_answer=evaluate_response.content,
+                score=parsed_output.get('score', ''),
+                reasoning=parsed_output.get('reasoning', ''),
+                metadata=metadata
+            )
 
     def _process_single_case(self, case: LLMTestCase) -> JudgeResult:
         """
         동기 방식으로 단일 테스트케이스를 처리합니다.
         """
-        metadata = {}
-        metadata = {'student_template_language': self.template_language}
-        metadata['student_model_name'] = response.response_metadata.get('model_name', '')
         try:
             self._validate_testcase(case)
-
             if not case.output:
                 if self.answer_model is None:
                     raise ValueError(
-                        "output이 없고 answer_model도 설정되지 않았습니다. "
-                        "output을 직접 제공하거나 answer_model을 설정해주세요."
-                    )
-                case_output = self._generate_answer_one_case(case)
-                case.output = case_output.content
-                token_usage['answer'] = {
-                    'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
-                    'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
-                    'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
-                }
+                        "output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
+                response = self._generate_answer_one_case(case)
+            else:
+                response = AIMessage(
+                    content=case.output,
+                    response_metadata={
+                        'model_name': getattr(case, 'model_name', ''),
+                        'token_usage': getattr(case, 'token_usage', {})
+                    }
+                )
+            # evaluate answer 
+            evaluate_response = self._evaluate_answer(case, response)
+            
+            result = self._process_generated_answer(case, response, evaluate_response)
+            
 
-            evaluation_result = self._evaluate_answer(case)
-            token_usage['evaluation'] = evaluation_result.get('token_usage', {})
-            score = evaluation_result.get('score', 0)
-            reasoning = evaluation_result.get('reasoning', '')
-
-            if self.verbose_mode:
-                print(f"Input: {case.input}")
-                print(f"Generated answer: {case.output}")
-                print(f"Expected answer: {case.expected_output}")
-                print(f"Score: {score}")
-                print(f"Reasoning: {reasoning}")
-
-            return JudgeResult(
-                question=case.input,
-                student_answer=case.output,
-                reasoning=reasoning,
-                score=score,
-                language=self.template_language,
-                token_usage=token_usage
-            )
+            return result
 
         except Exception as e:
             print(f"Error processing test case: {str(e)}")
             return JudgeResult(
                 question=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
+                teacher_answer=evaluate_response.content,
                 reasoning=getattr(case, 'reasoning', ''),
-                score=False,
-                language=self.template_language,
-                token_usage=token_usage
+                score=0,
+                metadata=getattr(case, 'metadata', {})
             )
 
     async def _a_process_single_case(self, case: LLMTestCase) -> JudgeResult:
         """
         비동기 방식으로 단일 테스트케이스를 처리합니다.
         """
-        token_usage = {}
         try:
             self._validate_testcase(case)
-
             if not case.output:
                 if self.answer_model is None:
                     raise ValueError(
-                        "output이 없고 answer_model도 설정되지 않았습니다. "
-                        "output을 직접 제공하거나 answer_model을 설정해주세요."
-                    )
-                case_output = await self._a_generate_answer_one_case(case)
-                case.output = case_output.content
-                token_usage['answer'] = {
-                    'completion_tokens': case_output.response_metadata['token_usage'].get('completion_tokens'),
-                    'prompt_tokens': case_output.response_metadata['token_usage'].get('prompt_tokens'),
-                    'total_tokens': case_output.response_metadata['token_usage'].get('total_tokens')
-                }
+                        "output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
+                response = self._a_generate_answer_one_case(case)
+            else:
+                response = AIMessage(
+                    content=case.output,
+                    response_metadata={
+                        'model_name': getattr(case, 'model_name', ''),
+                        'token_usage': getattr(case, 'token_usage', {})
+                    }
+                )
+            # evaluate answer 
+            evaluate_response = self._evaluate_answer(case, response)
+            
+            result = self._process_generated_answer(case, response, evaluate_response)
+            
 
-            evaluation_result = await self._a_evaluate_answer(case)
-            token_usage['evaluation'] = evaluation_result.get('token_usage', {})
-            score = evaluation_result.get('score', 0)
-            reasoning = evaluation_result.get('reasoning', '')
-
-            if self.verbose_mode:
-                print(f"Input: {case.input}")
-                print(f"Generated answer: {case.output}")
-                print(f"Expected answer: {case.expected_output}")
-                print(f"Score: {score}")
-                print(f"Reasoning: {reasoning}")
-
-            return JudgeResult(
-                question=case.input,
-                student_answer=case.output,
-                reasoning=reasoning,
-                score=score,
-                language=self.template_language,
-                token_usage=token_usage
-            )
+            return result
 
         except Exception as e:
             print(f"Error processing test case: {str(e)}")
             return JudgeResult(
                 question=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
+                teacher_answer=evaluate_response.content,
                 reasoning=getattr(case, 'reasoning', ''),
-                score=False,
-                language=self.template_language,
-                token_usage=token_usage
+                score=0,
+                metadata=getattr(case, 'metadata', {})
             )
 
     def _generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
@@ -210,88 +220,27 @@ class JudgeMetric(BaseMetric):
         except Exception as e:
             raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
 
-    def _parse_evaluation_response(self, response_content: str, token_usage: dict) -> dict:
-        """
-        평가 모델의 응답을 파싱하여 점수와 평가 근거를 반환합니다.
-        """
-        try:
-            parsed_output = trimAndLoadJson(response_content)
-            if isinstance(parsed_output, dict):
-                score = float(parsed_output.get('score', 0))
-                reasoning = parsed_output.get('reason', 'No reasoning provided')
-            else:
-                score = float(parsed_output) if parsed_output is not None else 0
-                reasoning = 'Direct score provided without reasoning'
-
-            if self.verbose_mode:
-                print(f"Parsed evaluation result: {{'score': {score}, 'reasoning': {reasoning}}}")
-                print(f"Token usage: {token_usage}")
-
-            return {'score': score, 'reasoning': reasoning, 'token_usage': token_usage}
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"Warning: 평가 결과 파싱 실패. Raw output: {response_content}")
-            print(f"Error: {str(e)}")
-            return {'score': 0, 'reasoning': f'Failed to parse evaluation response: {str(e)}', 'token_usage': token_usage}
-
-    def _evaluate_answer(self, case: LLMTestCase) -> dict:
+    def _evaluate_answer(self, case: LLMTestCase, response : AIMessage) -> dict:
         """
         동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
         """
-        evaluation_tokens = {}
         try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=case.output)
+            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
             evaluation_response = self.score_model.invoke(evaluation_prompt)
-            print(evaluation_response.content)
-
-            evaluation_tokens = {
-                'completion_tokens': evaluation_response.response_metadata['token_usage'].get('completion_tokens'),
-                'prompt_tokens': evaluation_response.response_metadata['token_usage'].get('prompt_tokens'),
-                'total_tokens': evaluation_response.response_metadata['token_usage'].get('total_tokens')
-            }
-
-            return self._parse_evaluation_response(evaluation_response.content, evaluation_tokens)
+            return evaluation_response
         except Exception as e:
-            error_msg = f"답변 평가 중 오류 발생: {str(e)}"
-            print(error_msg)
-            return {'score': 0, 'reasoning': error_msg, 'token_usage': evaluation_tokens}
+            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
 
-    async def _a_evaluate_answer(self, case: LLMTestCase) -> dict:
+    async def _a_evaluate_answer(self, case: LLMTestCase, response: AIMessage) -> dict:
         """
         비동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
         """
-        evaluation_tokens = {}
         try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=case.output)
-            evaluation_response = await self.score_model.ainvoke(evaluation_prompt)
-
-            evaluation_tokens = {
-                'completion_tokens': evaluation_response.response_metadata['token_usage'].get('completion_tokens'),
-                'prompt_tokens': evaluation_response.response_metadata['token_usage'].get('prompt_tokens'),
-                'total_tokens': evaluation_response.response_metadata['token_usage'].get('total_tokens')
-            }
-
-            return self._parse_evaluation_response(evaluation_response.content, evaluation_tokens)
+            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
+            evaluation_response = self.score_model.ainvoke(evaluation_prompt)
+            return evaluation_response
         except Exception as e:
-            error_msg = f"답변 평가 중 오류 발생: {str(e)}"
-            print(error_msg)
-            return {'score': 0, 'reasoning': error_msg, 'token_usage': evaluation_tokens}
-
-    def _process_output(self, parsed_output: dict, case: LLMTestCase) -> dict:
-        """
-        파싱된 출력을 처리하여 결과 딕셔너리를 생성합니다.
-        """
-        answer = parsed_output.get('answer', '').strip()
-        if not answer:
-            print(f"경고: 생성된 답변이 비어있습니다. 입력: {case.input}")
-            result = {'answer': ''}
-            if self.generate_template_type == 'reasoning':
-                result['reasoning'] = parsed_output.get('reasoning', '')
-            return result
-
-        result = {'answer': answer}
-        if self.generate_template_type == 'reasoning':
-            result['reasoning'] = parsed_output.get('reasoning', '')
-        return result
+            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
 
     def _validate_testcase(self, case: LLMTestCase) -> None:
         """
@@ -301,6 +250,14 @@ class JudgeMetric(BaseMetric):
             raise ValueError("테스트케이스는 'input' 속성을 가져야 합니다.")
         if not case.input:
             raise ValueError("input이 비어있습니다.")
+    
+    def _log_process_info(self, case: LLMTestCase, evaluate_response: JudgeResult):
+        if self.verbose_mode:
+                print(f"Input: {case.input}")
+                print(f"Student answer: {case.output}")
+                print(f"teacher answer: {evaluate_response.content}")
+                print(f"Reasoning: {case.reasoning}")
+
 
     @classmethod
     def get_score_category(cls):
