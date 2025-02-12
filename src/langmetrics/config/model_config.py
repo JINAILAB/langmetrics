@@ -24,7 +24,30 @@ class ModelConfig:
     api_base: str = None
     seed : int = 66
     max_tokens: int = 4096
+    rpm : int = None
     provider: str = "openai"  # 프로바이더 정보 추가
+    
+@dataclass
+class GeminiModelConfig:
+    """모델별 설정을 관리하는 클래스
+    
+    각 LLM 모델의 기본적인 설정값들을 저장하고 관리합니다.
+    
+    Attributes:
+        model_name (str): 사용할 모델의 이름 (예: "gpt-4", "claude-3")
+        api_base (str): API 엔드포인트 URL
+        api_key (str): API 인증 키
+        seed (int): 결과 재현을 위한 시드값 (기본값: 66)
+        max_tokens (int): 최대 토큰 수 (기본값: 4096)
+        provider (str): AI 제공 업체명 (예: "openai", "anthropic")"""
+    model_name: str
+    api_key: str
+    seed : int = 66
+    max_tokens: int = 4096
+    rpm : int = None
+    provider: str = "google"  # 프로바이더 정보 추가    
+    
+    
 
 @dataclass
 class NaverModelConfig(ModelConfig):
@@ -47,6 +70,7 @@ class LocalModelConfig:
     seed : int = 66
     mem_fraction_static : float = 0.9 # KV cahce를 위해 사용될 메모리, outofmemory 시 줄일것
     max_running_request : int = 1024 # 한 번에 최대로 돌릴 수 있는 max request 양
+    rpm = None
     
     
     

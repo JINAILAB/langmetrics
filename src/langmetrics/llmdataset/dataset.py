@@ -9,6 +9,7 @@ import json
 import csv
 import pandas as pd
 from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
+from langmetrics.result import LLMResult
 
 
 @dataclass
@@ -314,3 +315,181 @@ class LLMDataset:
 
 
 
+class ResultDataset(LLMDataset):
+    def __init__(self, test_cases: Optional[List[LLMResult]] = None):
+        super().__init__(test_cases)
+
+    def _validate_and_initialize(self) -> None:
+        """테스트 케이스 유효성 검증 및 DataFrame 초기화"""
+        if self.test_cases is None:
+            self.test_cases = []
+        
+        if isinstance(self.test_cases, LLMResult):
+            self.test_cases = [self.test_cases]
+            
+        if not isinstance(self.test_cases, list):
+            raise TypeError("'test_cases'는 리스트여야 합니다.")
+
+        data = [case.to_dict() for case in self.test_cases]
+        self._df = pl.DataFrame(data)
+        self.test_cases = None
+
+    @property
+    def df(self) -> pl.DataFrame:
+        return self._df
+
+    @df.setter
+    def df(self, value: pl.DataFrame) -> None:
+        if not isinstance(value, pl.DataFrame):
+            raise TypeError("입력은 polars.DataFrame 타입이어야 합니다.")
+        
+        required_columns = {
+            'input', 'student_answer', 'teacher_answer', 'expected_output', 
+            'context', 'retrieval_context', 'reasoning', 'choices',
+            'score', 'metadata'
+        }
+        
+        current_columns = set(value.columns)
+        missing_columns = required_columns - current_columns
+        
+        if missing_columns:
+            raise ValueError(f"다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
+        
+        self._df = value
+
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            if idx < 0:
+                idx = len(self) + idx
+            if not (0 <= idx < len(self)):
+                raise IndexError("인덱스가 범위를 벗어났습니다.")
+            row_dict = {name: val for name, val in zip(self._df.columns, self._df.row(idx))}
+            return LLMResult(
+                input=row_dict['input'],
+                student_answer=row_dict['student_answer'],
+                teacher_answer=row_dict['teacher_answer'],
+                expected_output=row_dict['expected_output'],
+                context=row_dict['context'],
+                retrieval_context=row_dict['retrieval_context'],
+                reasoning=row_dict['reasoning'],
+                choices=row_dict['choices'],
+                score=row_dict['score'],
+                metadata=row_dict['metadata']
+            )
+        elif isinstance(idx, slice):
+            _df_slice = self._df[idx]
+            return [LLMResult(**{
+                'input': row['input'],
+                'student_answer': row['student_answer'],
+                'teacher_answer': row['teacher_answer'],
+                'expected_output': row['expected_output'],
+                'context': row['context'],
+                'retrieval_context': row['retrieval_context'],
+                'reasoning': row['reasoning'],
+                'choices': row['choices'],
+                'score': row['score'],
+                'metadata': row['metadata']
+            }) for row in _df_slice.iter_rows(named=True)]
+        raise TypeError("인덱스는 정수 또는 슬라이스여야 합니다.")
+
+    # 결과 데이터셋에 특화된 메서드들
+    def get_average_score(self) -> float:
+        """전체 데이터셋의 평균 점수를 반환"""
+        return self._df['score'].mean()
+
+    def get_score_distribution(self) -> Dict[str, int]:
+        """점수 분포를 반환"""
+        return self._df.groupby('score').agg(
+            pl.count('score').alias('count')
+        ).to_dict(as_series=False)
+
+    def filter_by_score_range(self, min_score: float, max_score: float) -> 'ResultDataset':
+        """특정 점수 범위의 결과만 필터링"""
+        filtered_df = self._df.filter(
+            (pl.col('score') >= min_score) & (pl.col('score') <= max_score)
+        )
+        new_dataset = ResultDataset()
+        new_dataset.df = filtered_df
+        return new_dataset
+
+    def get_metadata_summary(self) -> Dict:
+        """메타데이터 필드의 요약 통계를 반환"""
+        metadata_list = self._df['metadata'].to_list()
+        summary = {}
+        for metadata in metadata_list:
+            for key, value in metadata.items():
+                if key not in summary:
+                    summary[key] = []
+                summary[key].append(value)
+        return {key: list(set(values)) for key, values in summary.items()}
+    
+    @classmethod
+    def from_huggingface_hub(cls, path: str, field_mapping: dict = None, **kwargs) -> 'ResultDataset':
+        try:
+            from datasets import load_dataset
+            import polars as pl
+        except ImportError:
+            raise ImportError(
+                "이 메서드를 사용하려면 'datasets' 패키지가 필요합니다. "
+                "'pip install datasets'로 설치하세요."
+            )
+        
+        # 기본 필드 매핑 설정 (ResultDataset에 맞게 수정)
+        default_mapping = {
+            'input': 'input',
+            'output': 'student_answer',  # student_answer를 output으로 매핑
+            'teacher_answer': 'teacher_answer',
+            'expected_output': 'expected_output',
+            'context': 'context',
+            'retrieval_context': 'retrieval_context',
+            'reasoning': 'reasoning',
+            'choices': 'choices',
+            'score': 'score',
+            'metadata': 'metadata'
+        }
+        
+        # 사용자가 제공한 매핑으로 기본 매핑 업데이트
+        if field_mapping:
+            default_mapping.update(field_mapping)
+        
+        # 데이터셋 로드
+        dataset = load_dataset(path, **kwargs)
+        
+        # 데이터셋이 DatasetDict인 경우 첫 번째 split 사용
+        if hasattr(dataset, 'keys'):
+            first_split = list(dataset.keys())[0]
+            dataset = dataset[first_split]
+        
+        # 필드 매핑 및 데이터 변환
+        data_dicts = []
+        available_fields = dataset.features.keys()
+        
+        for item in dataset:
+            mapped_item = {}
+            for target_field, source_field in default_mapping.items():
+                # 소스 필드가 있으면 값을 가져오고, 없으면 기본값 설정
+                value = item.get(source_field) if source_field in available_fields else None
+                
+                # 특별한 필드들에 대한 기본값 처리
+                if value is None:
+                    if target_field == 'score':
+                        value = 0
+                    elif target_field == 'metadata':
+                        value = None
+                
+                mapped_item[target_field] = value
+            
+            # student_answer를 output으로 변환 (LLMDataset 호환성)
+            mapped_item['output'] = mapped_item.pop('student_answer')
+            data_dicts.append(mapped_item)
+        
+        # Polars DataFrame 생성
+        df = pl.DataFrame(data_dicts)
+        
+        # 빈 인스턴스 생성
+        instance = cls(test_cases=None)
+        
+        # DataFrame 직접 설정
+        instance._df = df
+        
+        return instance

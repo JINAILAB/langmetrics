@@ -4,14 +4,14 @@ from typing import Union, Literal, Optional, List
 from langmetrics.metrics.base_metric import BaseMetric
 from langmetrics.llmtestcase import LLMTestCase
 from langmetrics.metrics.mcq_choice.mcq_template import MCQTemplate
-from langmetrics.llmdataset import LLMDataset
+from langmetrics.llmdataset import LLMDataset, ResultDataset
 from langchain_core.messages import AIMessage
 from langmetrics.metrics import BaseTemplate
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import ChatClovaX
 from langmetrics.utils import trimAndLoadJson
-from langmetrics.metrics.base_result import MCQResult
+from langmetrics.result import LLMResult
 
 
 class MCQMetric(BaseMetric):
@@ -50,24 +50,24 @@ class MCQMetric(BaseMetric):
     def measure(
         self, 
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
-    ) -> Union[MCQResult, List[MCQResult]]:
+    ) -> Union[LLMResult, List[LLMResult]]:
         """
         모델 답변의 정확도를 동기적으로 평가합니다.
         """
         testcases = self._normalize_testcases(testcase)
-        results = [self._process_single_case(case) for case in testcases]
-        return results[0] if isinstance(testcase, LLMTestCase) else results
+        results = ([self._process_single_case(case) for case in testcases])
+        return results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(results)
 
     async def ameasure(
         self, 
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
-    ) -> Union[MCQResult, List[MCQResult]]:
+    ) -> Union[LLMResult, List[LLMResult]]:
         """
         모델 답변의 정확도를 비동기적으로 평가합니다.
         """
         testcases = self._normalize_testcases(testcase)
         results = await asyncio.gather(*(self._a_process_single_case(case) for case in testcases))
-        return results[0] if isinstance(testcase, LLMTestCase) else results
+        return results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(results)
 
     def _normalize_testcases(
         self, 
@@ -117,17 +117,20 @@ class MCQMetric(BaseMetric):
         # verbose mode시 case 출력
         self._log_process_info(case)
             
-        return MCQResult(
-                question=getattr(case, 'input', ''),
-                choice=getattr(case, 'choices', ''),
-                ground_truth=getattr(case, 'expected_output', ''),
+        return LLMResult(
+                input=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
+                teacher_answer=None,
+                expected_output=getattr(case, 'expected_output', ''),
+                context=None,
+                retrieval_context=None,
                 reasoning=getattr(case, 'reasoning', ''),
+                choices=getattr(case, 'choices', ''),
                 score=int(parsed_output['answer'] == case.expected_output),
                 metadata=metadata
             )
 
-    def _process_single_case(self, case: LLMTestCase) -> MCQResult:
+    def _process_single_case(self, case: LLMTestCase) -> LLMResult:
         """단일 테스트케이스를 동기적으로 처리합니다."""
         try:
             self._validate_testcase(case)
@@ -150,17 +153,20 @@ class MCQMetric(BaseMetric):
         except Exception as e:
             if self.verbose_mode:
                 print(f"Error processing test case: {str(e)}")
-            return MCQResult(
-                question=getattr(case, 'input', ''),
-                choice=getattr(case, 'choices', ''),
-                ground_truth=getattr(case, 'expected_output', ''),
+                
+            return LLMResult(
+                input=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
+                teacher_answer=None,
+                expected_output=getattr(case, 'expected_output', ''),
+                context=None,
+                retrieval_context=None,
                 reasoning=getattr(case, 'reasoning', ''),
+                choices=getattr(case, 'choices', ''),
                 score=0,
-                metadata=getattr(case, 'metadata', {})
-            )
+                metadata={'error' : str(e)})
 
-    async def _a_process_single_case(self, case: LLMTestCase) -> MCQResult:
+    async def _a_process_single_case(self, case: LLMTestCase) -> LLMResult:
         """단일 테스트케이스를 비동기적으로 처리합니다."""
         try:
             self._validate_testcase(case)
@@ -183,15 +189,17 @@ class MCQMetric(BaseMetric):
         except Exception as e:
             if self.verbose_mode:
                 print(f"Error processing test case: {str(e)}")
-            return MCQResult(
-                question=getattr(case, 'input', ''),
-                choice=getattr(case, 'choices', ''),
-                ground_truth=getattr(case, 'expected_output', ''),
+            return LLMResult(
+                input=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
+                teacher_answer=None,
+                expected_output=getattr(case, 'expected_output', ''),
+                context=None,
+                retrieval_context=None,
                 reasoning=getattr(case, 'reasoning', ''),
+                choices=getattr(case, 'choices', ''),
                 score=0,
-                metadata=getattr(case, 'metadata', {})
-            )
+                metadata={'error' : str(e)})
 
     def _generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
         """LLM을 사용하여 동기적으로 답변을 생성합니다."""

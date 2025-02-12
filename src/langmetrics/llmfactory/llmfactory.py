@@ -1,10 +1,11 @@
-from langmetrics.config import ModelConfig, NaverModelConfig, LocalModelConfig
+from langmetrics.config import ModelConfig, NaverModelConfig, LocalModelConfig, GeminiModelConfig
 from typing import Any, Optional
 import os
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_deepseek import ChatDeepSeek
 from langchain_community.chat_models import ChatClovaX
+from langchain_google_genai import ChatGoogleGenerativeAI
 from .base_factory import BaseFactory
 from typing import Union
 from langmetrics.utils import execute_shell_command
@@ -25,9 +26,22 @@ class LocalChatOpenAI(ChatOpenAI):
             terminate_process(self.server_process)
 
 
+class GeminiFactory(BaseFactory):    
+    def _create_specific_llm(self, config: GeminiModelConfig, temperature: float, **kwargs) -> ChatGoogleGenerativeAI:
+        
+        return ChatGoogleGenerativeAI(
+            temperature=temperature,
+            model=config.model_name,
+            api_key=config.api_key,
+            seed=config.seed,
+            max_tokens_to_sample=config.max_tokens,
+            **kwargs
+        )
+
 class OpenAIFactory(BaseFactory):
     """OpenAI LLM 생성 팩토리"""
-    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+
         return ChatOpenAI(
             temperature=temperature,
             model=config.model_name,
@@ -40,7 +54,8 @@ class OpenAIFactory(BaseFactory):
 
 class AnthropicFactory(BaseFactory):
     """Anthropic(Claude) LLM 생성 팩토리"""
-    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatAnthropic:
+    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatAnthropic:
+
         return ChatAnthropic(
             temperature=temperature,
             model=config.model_name,
@@ -52,7 +67,7 @@ class AnthropicFactory(BaseFactory):
 
 class NaverFactory(BaseFactory):
     """Naver LLM 생성 팩토리"""
-    def create_llm(self, config: NaverModelConfig, temperature: float, **kwargs) -> ChatClovaX:
+    def _create_specific_llm(self, config: NaverModelConfig, temperature: float, **kwargs) -> ChatClovaX:
         # Naver API 클라이언트 구현
         # 실제 Naver Clova API 사용을 위한 구현 필요
         return ChatClovaX(
@@ -66,7 +81,7 @@ class NaverFactory(BaseFactory):
         )
 
 class DeepseekFactory(BaseFactory):
-    def create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         return ChatDeepSeek(
             temperature=temperature,
             model=config.model_name,
@@ -78,7 +93,7 @@ class DeepseekFactory(BaseFactory):
         )
 
 class LocalLLMFactory(BaseFactory):
-    def create_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+    def _create_specific_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         print('waiting llm server boot')
         if config.dp == 1:
             server_process = execute_shell_command(
@@ -100,7 +115,7 @@ class LocalLLMFactory(BaseFactory):
         wait_for_server(f"http://localhost:{config.port}")
         
         # LocalChatOpenAI는 shutdown_server를 지원함.
-        llm = LocalChatOpenAI(
+        return LocalChatOpenAI(
             temperature=temperature,
             model=config.model_name,
             base_url=f"http://localhost:{config.port}/v1",
@@ -109,7 +124,6 @@ class LocalLLMFactory(BaseFactory):
             server_process=server_process,
             **kwargs,
         )
-        return llm
 
 
         
@@ -146,6 +160,7 @@ class LLMFactory:
             api_base="https://api.openai.com/v1",
             api_key=os.getenv("OPENAI_API_KEY"),
             max_tokens=8000,
+            rpm=500,
             seed=66,
             provider="openai"
         ),
@@ -155,6 +170,7 @@ class LLMFactory:
             api_base="https://api.openai.com/v1",
             api_key=os.getenv("OPENAI_API_KEY"),
             max_tokens=8000,
+            rpm=500,
             seed=66,
             provider="openai"
         ),
@@ -163,7 +179,7 @@ class LLMFactory:
             model_name="deepseek-chat",
             api_base="https://api.deepseek.com",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
-            max_tokens=8000,
+            max_tokens=500,
             seed=66,
             provider="deepseek"
         ),
@@ -172,7 +188,7 @@ class LLMFactory:
             model_name="deepseek-reasoner",
             api_base="https://api.deepseek.com",
             api_key=os.getenv("DEEPSEEK_API_KEY"),
-            max_tokens=8000,
+            max_tokens=500,
             seed=66,
             provider="deepseek"
         ),
@@ -202,7 +218,16 @@ class LLMFactory:
             max_tokens=4096,
             seed=66,
             provider="naver",
-        )
+        ),
+        
+        "gemini-2.0-flash": GeminiModelConfig(
+            model_name="gemini-2.0-flash",
+            api_key=os.getenv("GEMINI_API_KEY"),
+            max_tokens=8000,
+            seed=66,
+            rpm=15,
+            provider="gemini"
+        ),
         # 다른 모델들도 여기에 추가
     }
     
@@ -211,6 +236,7 @@ class LLMFactory:
         "anthropic": AnthropicFactory(),
         "naver": NaverFactory(),
         "deepseek" : DeepseekFactory(),
+        "gemini" : GeminiFactory(),
         "local" : LocalLLMFactory(),
     }
     

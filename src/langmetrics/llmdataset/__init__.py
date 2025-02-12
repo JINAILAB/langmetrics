@@ -1,3 +1,3 @@
-from .dataset import LLMDataset
+from .dataset import LLMDataset, ResultDataset
 
-__all__ = ['LLMDataset']
+__all__ = ['LLMDataset', 'ResultDataset']

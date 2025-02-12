@@ -32,7 +32,9 @@ dependencies = [
     "sqlalchemy>=1.4.0",
     "psycopg2-binary>=2.9.0",
     "sglang-router",
-    "polars==1.21.0"
+    "langchain-google-genai",
+    "polars==1.21.0",
+    "aiolimiter"
 ]
 
 [project.urls]
