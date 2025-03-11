@@ -60,7 +60,6 @@ class AnthropicFactory(BaseFactory):
             temperature=temperature,
             model=config.model_name,
             api_key=config.api_key,
-            seed=config.seed,
             max_tokens_to_sample=config.max_tokens,
             **kwargs
         )
@@ -193,12 +192,19 @@ class LLMFactory:
             provider="deepseek"
         ),
         
+        "claude-3.7-sonnet": ModelConfig(
+            model_name="claude-3-7-sonnet-latest",
+            api_base="https://api.anthropic.com",
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            max_tokens=8000,
+            provider="anthropic"
+        ),
+        
         "claude-3.5-sonnet": ModelConfig(
             model_name="claude-3-5-sonnet-latest",
             api_base="https://api.anthropic.com",
             api_key=os.getenv("ANTHROPIC_API_KEY"),
             max_tokens=8000,
-            seed=66,
             provider="anthropic"
         ),
         
@@ -207,7 +213,6 @@ class LLMFactory:
             api_base="https://api.anthropic.com",
             api_key=os.getenv("ANTHROPIC_API_KEY"),
             max_tokens=8000,
-            seed=66,
             provider="anthropic"
         ),
     
