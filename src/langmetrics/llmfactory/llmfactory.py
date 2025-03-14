@@ -27,7 +27,7 @@ class LocalChatOpenAI(ChatOpenAI):
 
 
 class GeminiFactory(BaseFactory):    
-    def _create_specific_llm(self, config: GeminiModelConfig, temperature: float, **kwargs) -> ChatGoogleGenerativeAI:
+    def _create_llm(self, config: GeminiModelConfig, temperature: float, **kwargs) -> ChatGoogleGenerativeAI:
         
         return ChatGoogleGenerativeAI(
             temperature=temperature,
@@ -40,8 +40,7 @@ class GeminiFactory(BaseFactory):
 
 class OpenAIFactory(BaseFactory):
     """OpenAI LLM 생성 팩토리"""
-    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
-
+    def _create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         return ChatOpenAI(
             temperature=temperature,
             model=config.model_name,
@@ -54,7 +53,7 @@ class OpenAIFactory(BaseFactory):
 
 class AnthropicFactory(BaseFactory):
     """Anthropic(Claude) LLM 생성 팩토리"""
-    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatAnthropic:
+    def _create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatAnthropic:
 
         return ChatAnthropic(
             temperature=temperature,
@@ -66,7 +65,7 @@ class AnthropicFactory(BaseFactory):
 
 class NaverFactory(BaseFactory):
     """Naver LLM 생성 팩토리"""
-    def _create_specific_llm(self, config: NaverModelConfig, temperature: float, **kwargs) -> ChatClovaX:
+    def _create_llm(self, config: NaverModelConfig, temperature: float, **kwargs) -> ChatClovaX:
         # Naver API 클라이언트 구현
         # 실제 Naver Clova API 사용을 위한 구현 필요
         return ChatClovaX(
@@ -80,7 +79,7 @@ class NaverFactory(BaseFactory):
         )
 
 class DeepseekFactory(BaseFactory):
-    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+    def _create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         return ChatDeepSeek(
             temperature=temperature,
             model=config.model_name,
@@ -92,7 +91,7 @@ class DeepseekFactory(BaseFactory):
         )
 
 class LocalLLMFactory(BaseFactory):
-    def _create_specific_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
+    def _create_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         print('waiting llm server boot')
         if config.dp == 1:
             server_process = execute_shell_command(
@@ -322,6 +321,7 @@ class LLMFactory:
         else:
             # ModelConfig 인스턴스인 경우 직접 사용
             config = model_name_or_config
+            print(config)
             
         factory = cls._get_factory(config.provider)
         return factory.create_llm(config, temperature)

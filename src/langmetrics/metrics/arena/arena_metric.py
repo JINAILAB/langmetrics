@@ -1,7 +1,7 @@
 from langmetrics.metrics.base_metric import BaseMetric
 from typing import Union, Literal, List
 from langmetrics.llmtestcase import LLMTestCase
-from langmetrics.metrics.judge.judge_template import JudgeTemplate
+from langmetrics.metrics.arena.arena_template import ArenaTemplate
 from langmetrics.llmdataset import LLMDataset, ResultDataset
 from langchain_core.messages import AIMessage
 from langmetrics.metrics import BaseTemplate
@@ -15,36 +15,38 @@ from langmetrics.result import LLMResult
 from pathlib import Path
 
 
-class JudgeMetric(BaseMetric):
+class ArenaMetric(BaseMetric):
     def __init__(
         self,
-        score_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX],
-        category: str = 'temporal_relevance',
-        answer_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX] = None,
+        judge_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX],
+        category: str = 'general_comparison',
+        student_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX] = None,
+        teacher_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX] = None,
         verbose_mode: bool = False,
         template_language: Literal['ko', 'en'] = 'ko',
         generate_template_type: Literal['reasoning', 'only_answer'] = 'reasoning',
-        judge_template: Union[str, JudgeTemplate, BaseTemplate] = None,
+        arena_template: Union[str, ArenaTemplate, BaseTemplate] = None,
     ):
-        self.answer_model = answer_model
-        self.score_model = score_model
-        self.score_model_name = score_model.model_name
+        self.student_model = student_model
+        self.teacher_model = teacher_model
+        self.judge_model = judge_model
+        self.judge_model_name = judge_model.model_name
         self.verbose_mode = verbose_mode
         self.template_language = template_language
         self.generate_template_type = generate_template_type
         self.category = category
         # template class
-        self.template = (JudgeTemplate(self.template_language, self.generate_template_type, self.category) 
-                        if judge_template is None else judge_template)
-        # judge를 위한 template string
-        self.template_for_judge = self.template.get_prompt_for_score()
+        self.template = (ArenaTemplate(self.template_language, self.generate_template_type, self.category) 
+                        if arena_template is None else arena_template)
+        # arena 비교를 위한 template string
+        self.template_for_comparison = self.template.get_prompt_for_comparison()
 
     def measure(
         self,
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
     ) -> Union[LLMResult, List[LLMResult]]:
         """
-        동기 방식으로 모델 답변의 정확도를 평가합니다.
+        동기 방식으로 모델 답변들을 비교 평가합니다.
         """
         testcases = self._normalize_testcases(testcase)
         results = ResultDataset([self._process_single_case(case) for case in testcases])
@@ -55,7 +57,7 @@ class JudgeMetric(BaseMetric):
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
     ) -> Union[LLMResult, List[LLMResult]]:
         """
-        비동기 방식으로 모델 답변의 정확도를 평가합니다.
+        비동기 방식으로 모델 답변들을 비교 평가합니다.
         """
         testcases = self._normalize_testcases(testcase)
         results = await asyncio.gather(*[self._a_process_single_case(case) for case in testcases])
@@ -81,53 +83,64 @@ class JudgeMetric(BaseMetric):
         else:
             raise TypeError("Invalid input type. Expected LLMTestCase, List[LLMTestCase], or LLMDataset")
         
-    def _process_generated_answer(self, case: LLMTestCase, response: AIMessage, evaluate_response: AIMessage) -> dict:
+    def _process_comparison_result(self, case: LLMTestCase, student_response: AIMessage, 
+                                  teacher_response: AIMessage, compare_response: AIMessage) -> LLMResult:
         """
-        LLM 응답을 처리하여 JSON 파싱, 메타데이터 업데이트 및 결과 생성까지 수행합니다.
+        비교 평가 결과를 처리하여 JSON 파싱, 메타데이터 업데이트 및 결과 생성까지 수행합니다.
         """
-        case.output = response.content
-        metadata = {'teacher_template_language': self.template_language}
-        metadata['student_model_name'] = response.response_metadata.get('model_name', '')
-        metadata['teacher_model_name'] = evaluate_response.response_metadata.get('model_name', '')
-        student_token_usage = response.response_metadata.get('token_usage', {})
+        metadata = {'template_language': self.template_language}
+        metadata['student_model_name'] = student_response.response_metadata.get('model_name', '')
+        metadata['teacher_model_name'] = teacher_response.response_metadata.get('model_name', '')
+        metadata['judge_model_name'] = compare_response.response_metadata.get('model_name', '')
+        
+        student_token_usage = student_response.response_metadata.get('token_usage', {})
         metadata['student_token_usage'] = {
             'completion_tokens': student_token_usage.get('completion_tokens'),
             'prompt_tokens': student_token_usage.get('prompt_tokens'),
             'total_tokens': student_token_usage.get('total_tokens')
         }
-        teacher_token_usage = evaluate_response.response_metadata.get('token_usage', {})
+        
+        teacher_token_usage = teacher_response.response_metadata.get('token_usage', {})
         metadata['teacher_token_usage'] = {
             'completion_tokens': teacher_token_usage.get('completion_tokens'),
             'prompt_tokens': teacher_token_usage.get('prompt_tokens'),
             'total_tokens': teacher_token_usage.get('total_tokens')
         }
         
+        judge_token_usage = compare_response.response_metadata.get('token_usage', {})
+        metadata['judge_token_usage'] = {
+            'completion_tokens': judge_token_usage.get('completion_tokens'),
+            'prompt_tokens': judge_token_usage.get('prompt_tokens'),
+            'total_tokens': judge_token_usage.get('total_tokens')
+        }
+        
         try:
-            parsed_output = trimAndLoadJson(evaluate_response.content)
+            parsed_output = trimAndLoadJson(compare_response.content)
             parsed_output = {
-                'score': parsed_output.get('score', ''),
-                'reasoning': parsed_output.get('reasoning', '')
+                'reasoning': parsed_output.get('reasoning', ''),
+                'winner': parsed_output.get('winner', '')
             }
         except json.JSONDecodeError:
             if self.verbose_mode:
-                print(f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}")
-            parsed_output = {'answer': '', 'reasoning': ''}
-            metadata['error'] = f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}"
+                print(f"Warning: JSON parsing failed. Raw output: {compare_response.content}")
+            parsed_output = {'reasoning': '', 'winner': ''}
+            metadata['error'] = f"Warning: JSON parsing failed. Raw output: {compare_response.content}"
+        
         case.reasoning = parsed_output.get('reasoning', '')
         
         # verbose mode시 case 출력
-        self._log_process_info(case, evaluate_response)
+        self._log_process_info(case, student_response, teacher_response, compare_response)
             
         return LLMResult(
                 input=getattr(case, 'input', ''),
-                student_answer=getattr(case, 'output', ''),
-                teacher_answer=evaluate_response.content,
-                expected_output=None,
-                context=None,
-                retrieval_context=None,
-                score=parsed_output.get('score', ''),
+                student_answer=student_response.content,
+                teacher_answer=teacher_response.content,
+                expected_output=getattr(case, 'expected_output', None),
+                context=getattr(case, 'context', None),
+                retrieval_context=getattr(case, 'retrieval_context', None),
+                score=parsed_output.get('winner', ''),
                 reasoning=parsed_output.get('reasoning', ''),
-                choices=getattr(case, 'choices', ''),
+                choices=getattr(case, 'choices', None),
                 metadata=metadata
             )
 
@@ -137,25 +150,42 @@ class JudgeMetric(BaseMetric):
         """
         try:
             self._validate_testcase(case)
-            if not case.output:
-                if self.answer_model is None:
+            
+            # 학생 모델 답변 처리
+            if not hasattr(case, 'output') or not case.output:
+                if self.student_model is None:
                     raise ValueError(
-                        "output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
-                response = self._generate_answer_one_case(case)
+                        "output이 없고 student_model도 설정되지 않았습니다. output을 직접 제공하거나 student_model을 설정해주세요.")
+                student_response = self._generate_student_answer(case)
             else:
-                response = AIMessage(
+                student_response = AIMessage(
                     content=case.output,
                     response_metadata={
                         'model_name': getattr(case, 'model_name', ''),
                         'token_usage': getattr(case, 'token_usage', {})
                     }
                 )
-            # evaluate answer 
-            evaluate_response = self._evaluate_answer(case, response)
             
-            result = self._process_generated_answer(case, response, evaluate_response)
+            # 교사 모델 답변 처리
+            if not hasattr(case, 'expected_output') or not case.expected_output:
+                if self.teacher_model is None:
+                    raise ValueError(
+                        "expected_output이 없고 teacher_model도 설정되지 않았습니다. expected_output을 직접 제공하거나 teacher_model을 설정해주세요.")
+                teacher_response = self._generate_teacher_answer(case)
+            else:
+                teacher_response = AIMessage(
+                    content=case.expected_output,
+                    response_metadata={
+                        'model_name': getattr(case, 'reference_model_name', ''),
+                        'token_usage': getattr(case, 'reference_token_usage', {})
+                    }
+                )
             
-
+            # 두 답변 비교 평가
+            compare_response = self._compare_answers(case, student_response, teacher_response)
+            
+            result = self._process_comparison_result(case, student_response, teacher_response, compare_response)
+            
             return result
 
         except Exception as e:
@@ -163,11 +193,11 @@ class JudgeMetric(BaseMetric):
             return LLMResult(
                 input=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
-                teacher_answer=evaluate_response.content,
-                expected_output=None,
-                context=None,
-                retrieval_context=None,
-                reasoning=getattr(case, 'reasoning', ''),
+                teacher_answer=getattr(case, 'expected_output', ''),
+                expected_output=getattr(case, 'expected_output', ''),
+                context=getattr(case, 'context', None),
+                retrieval_context=getattr(case, 'retrieval_context', None),
+                reasoning="처리 중 오류 발생: " + str(e),
                 score=0,
                 metadata=getattr(case, 'metadata', {})
             )
@@ -178,80 +208,123 @@ class JudgeMetric(BaseMetric):
         """
         try:
             self._validate_testcase(case)
-            if not case.output:
-                if self.answer_model is None:
+            
+            # 학생 모델 답변 처리
+            if not hasattr(case, 'output') or not case.output:
+                if self.student_model is None:
                     raise ValueError(
-                        "output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
-                response = self._a_generate_answer_one_case(case)
+                        "output이 없고 student_model도 설정되지 않았습니다. output을 직접 제공하거나 student_model을 설정해주세요.")
+                student_response = await self._a_generate_student_answer(case)
             else:
-                response = AIMessage(
+                student_response = AIMessage(
                     content=case.output,
                     response_metadata={
                         'model_name': getattr(case, 'model_name', ''),
                         'token_usage': getattr(case, 'token_usage', {})
                     }
                 )
-            # evaluate answer 
-            evaluate_response = self._evaluate_answer(case, response)
             
-            result = self._process_generated_answer(case, response, evaluate_response)
+            # 교사 모델 답변 처리
+            if not hasattr(case, 'expected_output') or not case.expected_output:
+                if self.teacher_model is None:
+                    raise ValueError(
+                        "expected_output이 없고 teacher_model도 설정되지 않았습니다. expected_output을 직접 제공하거나 teacher_model을 설정해주세요.")
+                teacher_response = await self._a_generate_teacher_answer(case)
+            else:
+                teacher_response = AIMessage(
+                    content=case.expected_output,
+                    response_metadata={
+                        'model_name': getattr(case, 'reference_model_name', ''),
+                        'token_usage': getattr(case, 'reference_token_usage', {})
+                    }
+                )
             
-
+            # 두 답변 비교 평가
+            compare_response = await self._a_compare_answers(case, student_response, teacher_response)
+            
+            result = self._process_comparison_result(case, student_response, teacher_response, compare_response)
+            
             return result
 
         except Exception as e:
             print(f"Error processing test case: {str(e)}")
             return LLMResult(
-                question=getattr(case, 'input', ''),
+                input=getattr(case, 'input', ''),
                 student_answer=getattr(case, 'output', ''),
-                teacher_answer=evaluate_response.content,
-                expected_output=None,
-                context=None,
-                retrieval_context=None,
-                reasoning=getattr(case, 'reasoning', ''),
+                teacher_answer=getattr(case, 'expected_output', ''),
+                expected_output=getattr(case, 'expected_output', ''),
+                context=getattr(case, 'context', None),
+                retrieval_context=getattr(case, 'retrieval_context', None),
+                reasoning="처리 중 오류 발생: " + str(e),
                 score=0,
                 metadata=getattr(case, 'metadata', {})
             )
 
-    def _generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
+    def _generate_student_answer(self, case: LLMTestCase) -> AIMessage:
         """
-        LLM을 사용하여 동기 방식으로 답변을 생성합니다.
+        학생 LLM을 사용하여 동기 방식으로 답변을 생성합니다.
         """
         try:
-            return self.answer_model.invoke(case.input)
+            return self.student_model.invoke(case.input)
         except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            raise RuntimeError(f"학생 모델 답변 생성 중 오류 발생: {str(e)}")
 
-    async def _a_generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
+    async def _a_generate_student_answer(self, case: LLMTestCase) -> AIMessage:
         """
-        LLM을 사용하여 비동기 방식으로 답변을 생성합니다.
+        학생 LLM을 사용하여 비동기 방식으로 답변을 생성합니다.
         """
         try:
-            return await self.answer_model.ainvoke(case.input)
+            return await self.student_model.ainvoke(case.input)
         except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            raise RuntimeError(f"학생 모델 답변 생성 중 오류 발생: {str(e)}")
 
-    def _evaluate_answer(self, case: LLMTestCase, response : AIMessage) -> dict:
+    def _generate_teacher_answer(self, case: LLMTestCase) -> AIMessage:
         """
-        동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
+        교사 LLM을 사용하여 동기 방식으로 답변을 생성합니다.
         """
         try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
-            evaluation_response = self.score_model.invoke(evaluation_prompt)
-            return evaluation_response
+            return self.teacher_model.invoke(case.input)
         except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            raise RuntimeError(f"교사 모델 답변 생성 중 오류 발생: {str(e)}")
 
-    async def _a_evaluate_answer(self, case: LLMTestCase, response: AIMessage) -> dict:
+    async def _a_generate_teacher_answer(self, case: LLMTestCase) -> AIMessage:
         """
-        비동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
+        교사 LLM을 사용하여 비동기 방식으로 답변을 생성합니다.
         """
         try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
-            evaluation_response = self.score_model.ainvoke(evaluation_prompt)
-            return evaluation_response
+            return await self.teacher_model.ainvoke(case.input)
         except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            raise RuntimeError(f"교사 모델 답변 생성 중 오류 발생: {str(e)}")
+
+    def _compare_answers(self, case: LLMTestCase, student_response: AIMessage, teacher_response: AIMessage) -> AIMessage:
+        """
+        동기 방식으로 judge 모델을 사용하여 두 답변을 비교 평가합니다.
+        """
+        try:
+            comparison_prompt = self.template.format_prompt(
+                question=case.input, 
+                student_answer=student_response.content, 
+                teacher_answer=teacher_response.content
+            )
+            comparison_response = self.judge_model.invoke(comparison_prompt)
+            return comparison_response
+        except Exception as e:
+            raise RuntimeError(f"답변 비교 평가 중 오류 발생: {str(e)}")
+
+    async def _a_compare_answers(self, case: LLMTestCase, student_response: AIMessage, teacher_response: AIMessage) -> AIMessage:
+        """
+        비동기 방식으로 judge 모델을 사용하여 두 답변을 비교 평가합니다.
+        """
+        try:
+            comparison_prompt = self.template.format_prompt(
+                question=case.input, 
+                student_answer=student_response.content, 
+                teacher_answer=teacher_response.content
+            )
+            comparison_response = await self.judge_model.ainvoke(comparison_prompt)
+            return comparison_response
+        except Exception as e:
+            raise RuntimeError(f"답변 비교 평가 중 오류 발생: {str(e)}")
 
     def _validate_testcase(self, case: LLMTestCase) -> None:
         """
@@ -262,20 +335,21 @@ class JudgeMetric(BaseMetric):
         if not case.input:
             raise ValueError("input이 비어있습니다.")
     
-    def _log_process_info(self, case: LLMTestCase, evaluate_response: LLMResult):
+    def _log_process_info(self, case: LLMTestCase, student_response: AIMessage, 
+                         teacher_response: AIMessage, compare_response: AIMessage):
         if self.verbose_mode:
-                print(f"Input: {case.input}")
-                print(f"Student answer: {case.output}")
-                print(f"teacher answer: {evaluate_response.content}")
-                print(f"Reasoning: {case.reasoning}")
-
+            print(f"Input: {case.input}")
+            print(f"Student answer: {student_response.content}")
+            print(f"Teacher answer: {teacher_response.content}")
+            print(f"Comparison result: {compare_response.content}")
+            print(f"Reasoning: {case.reasoning}")
 
     @classmethod
-    def get_score_category(cls):
-        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.json'
+    def get_comparison_category(cls):
+        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'arena_comparison_prompt.json'
         data = load_json(json_path)
         return list(data['category'].keys())
 
     @property
     def __name__(self):
-        return "JudgeMetric"
+        return "ArenaMetric"

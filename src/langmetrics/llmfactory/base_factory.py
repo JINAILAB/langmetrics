@@ -16,12 +16,10 @@ class BaseFactory(ABC):
         if rpm:
             rate_limiter = self._create_rate_limiter(rpm)
             kwargs['rate_limiter'] = rate_limiter
-            
-        return self._create_specific_llm(config, temperature, **kwargs)
-    
+        return self._create_llm(config, temperature, **kwargs)
     
     @abstractmethod
-    def _create_specific_llm(self, config: ModelConfig, temperature: float, **kwargs) -> Any:
+    def _create_llm(self, config: ModelConfig, temperature: float, **kwargs) -> Any:
         """구체적인 LLM 인스턴스를 생성하는 메서드입니다. 하위 클래스에서 구현해야 합니다."""
         pass
     

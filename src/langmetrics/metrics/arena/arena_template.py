@@ -22,7 +22,7 @@ class JudgeTemplate(BaseTemplate):
         
     def _load_prompt_template(self) -> Dict[str, Dict[str, str]]:
         """Load prompt template from JSON file."""
-        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.json'
+        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'arena_prompt.json'
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -43,7 +43,7 @@ class JudgeTemplate(BaseTemplate):
         
         self.prompt = ChatPromptTemplate.from_messages([self.human_message])
         
-    def get_prompt_for_score(self) -> ChatPromptTemplate:
+    def get_prompt_for_comparison(self) -> ChatPromptTemplate:
         """
         언어에 따른 적절한 프롬프트를 반환합니다.
         
@@ -53,10 +53,18 @@ class JudgeTemplate(BaseTemplate):
         Returns:
             str: 언어에 맞는 형식화된 프롬프트 문자열
         """
-        
-        return self.prompt
+        try:
+            if self.category not in self.template_data['category']:
+                raise ValueError(f"지원하지 않는 카테고리입니다: {self.category}")
+            
+            template = self.template_data['category'][self.category][self.language]
+            template = template[self.template_type]
+            return template
+        except KeyError as e:
+            raise KeyError(f"템플릿 데이터 구조에서 키를 찾을 수 없습니다: {str(e)}")
+
     
-    def format_prompt(self, question: str, answer: str) -> str:
+    def format_prompt(self, question: str, student_answer: str, teacher_answer: str) -> str:
         """
         Format the prompt with the given question and answer.
         
@@ -67,8 +75,9 @@ class JudgeTemplate(BaseTemplate):
         Returns:
             Formatted prompt string
         """
+        
         return self.prompt.format_messages(
             question=question,
-            answer=answer
+            student_answer=student_answer,
+            teacher_answer=teacher_answer
         )
-        

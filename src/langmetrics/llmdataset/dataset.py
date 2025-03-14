@@ -1,13 +1,12 @@
 from __future__ import annotations 
 from ..llmtestcase import LLMTestCase
 from dataclasses import dataclass, field
-import polars as pl
+import pandas as pd
 from abc import ABC, abstractmethod
 from typing import List, Iterator, Union, TypeVar, Generic, Optional, Tuple, Callable, Dict
 from pathlib import Path
 import json
 import csv
-import pandas as pd
 from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
 from langmetrics.result import LLMResult
 
@@ -15,7 +14,7 @@ from langmetrics.result import LLMResult
 @dataclass
 class LLMDataset:
     test_cases: Union[List[LLMTestCase], LLMTestCase, None] = field(default_factory=list, repr=False)
-    _df: pl.DataFrame = field(init=False, repr=False)
+    _df: pd.DataFrame = field(init=False, repr=False)
 
     def __post_init__(self):
         self._validate_and_initialize()
@@ -36,13 +35,12 @@ class LLMDataset:
 
         # 데이터프레임 초기화
         data = [case.to_dict() for case in self.test_cases]
-        self._df = pl.DataFrame(data)
+        self._df = pd.DataFrame(data)
         self.test_cases = None
 
     def _get_row_as_dict(self, idx: int) -> Dict:
         """특정 인덱스의 행을 딕셔너리로 반환"""
-        row = self._df.row(idx)
-        return dict(zip(self._df.columns, row))
+        return self._df.iloc[idx].to_dict()
 
     def _validate_test_case(self, test_case: LLMTestCase) -> None:
         """단일 테스트 케이스 유효성 검증"""
@@ -50,20 +48,20 @@ class LLMDataset:
             raise TypeError("테스트 케이스는 LLMTestCase 인스턴스여야 합니다.")
         
     @property
-    def df(self) -> pl.DataFrame:
-        """Polars DataFrame에 대한 getter"""
+    def df(self) -> pd.DataFrame:
+        """Pandas DataFrame에 대한 getter"""
         return self._df
 
     @df.setter
-    def df(self, value: pl.DataFrame) -> None:
+    def df(self, value: pd.DataFrame) -> None:
         """
-        Polars DataFrame에 대한 setter
+        Pandas DataFrame에 대한 setter
         - DataFrame 타입 검증
         - 필수 컬럼 존재 여부 검증
         """
-        # Polars DataFrame 타입 검증
-        if not isinstance(value, pl.DataFrame):
-            raise TypeError("입력은 polars.DataFrame 타입이어야 합니다.")
+        # Pandas DataFrame 타입 검증
+        if not isinstance(value, pd.DataFrame):
+            raise TypeError("입력은 pandas.DataFrame 타입이어야 합니다.")
         
         # 필수 컬럼 정의
         required_columns = {
@@ -84,7 +82,7 @@ class LLMDataset:
 
     # Collection 인터페이스 구현
     def __len__(self) -> int:
-        return self._df.height
+        return len(self._df)
 
     def __getitem__(self, idx) -> Union[LLMTestCase, List[LLMTestCase]]:
         if isinstance(idx, int):
@@ -93,11 +91,10 @@ class LLMDataset:
                 idx = len(self) + idx
             if not (0 <= idx < len(self)):
                 raise IndexError("인덱스가 범위를 벗어났습니다.")
-            return LLMTestCase(**{name: val for name, val in zip(self._df.columns, self._df.row(idx))})
+            return LLMTestCase(**self._df.iloc[idx].to_dict())
         elif isinstance(idx, slice):
-            _df_slice = self._df[idx]
-            return [LLMTestCase(**{name: val for name, val in zip(_df_slice.columns, row)}) 
-                   for row in _df_slice.iter_rows()]
+            df_slice = self._df.iloc[idx]
+            return [LLMTestCase(**row) for _, row in df_slice.iterrows()]
         raise TypeError("인덱스는 정수 또는 슬라이스여야 합니다.")
 
     def __iter__(self) -> Iterator[LLMTestCase]:
@@ -107,70 +104,69 @@ class LLMDataset:
         return str(self._df)
 
     def __repr__(self) -> str:
-        return f"LLMDataset(Polars DataFrame with {len(self)} rows)"
+        return f"LLMDataset(Pandas DataFrame with {len(self)} rows)"
 
     # 데이터 조작 메서드
     def append(self, test_case: LLMTestCase) -> None:
         self._validate_test_case(test_case)
-        self._df = self._df.vstack(pl.DataFrame([test_case.to_dict()]))
+        self._df = pd.concat([self._df, pd.DataFrame([test_case.to_dict()])])
 
     def extend(self, other: Union[List[LLMTestCase], 'LLMDataset']) -> None:
         if isinstance(other, LLMDataset):
-            other_list = other.to_list(dict_format=True)
+            other_df = other.df
         elif isinstance(other, list):
             if not all(isinstance(item, LLMTestCase) for item in other):
                 raise TypeError("리스트의 모든 아이템은 LLMTestCase 인스턴스여야 합니다.")
-            other_list = [item.to_dict() for item in other]
+            other_df = pd.DataFrame([item.to_dict() for item in other])
         else:
             raise TypeError(f"리스트 또는 LLMDataset 타입이어야 합니다. (받은 타입: {type(other)})")
-        self._df = self._df.vstack(pl.DataFrame(other_list))
+        self._df = pd.concat([self._df, other_df])
 
     def insert(self, index: int, test_case: LLMTestCase) -> None:
         self._validate_test_case(test_case)
-        self._df = pl.concat([
-            self._df[:index],
-            pl.DataFrame([test_case.to_dict()]),
-            self._df[index:]
-        ])
+        before = self._df.iloc[:index]
+        after = self._df.iloc[index:]
+        inserted = pd.DataFrame([test_case.to_dict()])
+        self._df = pd.concat([before, inserted, after]).reset_index(drop=True)
 
     def remove(self, test_case: LLMTestCase) -> None:
         idx = self.index(test_case)
-        self._df = self._df.drop([idx])
+        self._df = self._df.drop(self._df.index[idx]).reset_index(drop=True)
 
     def pop(self, index: int = -1) -> LLMTestCase:
         index = len(self) + index if index < 0 else index
-        result = LLMTestCase(**self._get_row_as_dict(index))
-        self._df = self._df.drop([index])
+        result = LLMTestCase(**self._df.iloc[index].to_dict())
+        self._df = self._df.drop(self._df.index[index]).reset_index(drop=True)
         return result
 
     def clear(self) -> None:
-        self._df = pl.DataFrame(schema=self._df.schema)
+        self._df = pd.DataFrame(columns=self._df.columns)
 
     def index(self, test_case: LLMTestCase) -> int:
         target = test_case.to_dict()
-        for i, row in enumerate(self._df.to_dicts()):
-            if row == target:
+        for i, row in self._df.iterrows():
+            if row.to_dict() == target:
                 return i
         raise ValueError("테스트 케이스를 찾을 수 없습니다.")
 
     def count(self, test_case: LLMTestCase) -> int:
         target = test_case.to_dict()
-        return sum(1 for row in self._df.to_dicts() if row == target)
+        return sum(1 for _, row in self._df.iterrows() if row.to_dict() == target)
 
     def reverse(self) -> None:
-        self._df = self._df.reverse()
+        self._df = self._df.iloc[::-1].reset_index(drop=True)
 
     # 데이터 변환 메서드
     def to_list(self, dict_format: bool = False, include_attrs: Optional[List[str]] = None) -> List[Union[LLMTestCase, dict]]:
-        rows = self._df.to_dicts()
         if include_attrs:
-            rows = [{k: v for k, v in row.items() if k in include_attrs} for row in rows]
+            rows = self._df[include_attrs].to_dict('records')
+        else:
+            rows = self._df.to_dict('records')
         return rows if dict_format else [LLMTestCase(**row) for row in rows]
     
     def to_dict(self) -> Dict:
-        return self._df.to_dict(as_series=False)
+        return {col: self._df[col].tolist() for col in self._df.columns}
         
-
     # 데이터 분할 및 샘플링 메서드
     def split(self, test_size: float = 0.2, random_state: Optional[int] = None, shuffle: bool = True) -> Tuple['LLMDataset', 'LLMDataset']:
         if not 0 <= test_size <= 1:
@@ -186,82 +182,73 @@ class LLMDataset:
     def sample(self, n: Optional[int] = None, frac: Optional[float] = None, random_state: Optional[int] = None) -> 'LLMDataset':
         if (n is None and frac is None) or (n is not None and frac is not None):
             raise ValueError("n 또는 frac 중 정확히 하나를 지정해야 합니다.")
-            
-        import random
-        if random_state is not None:
-            random.seed(random_state)
-            
-        cases = self.to_list(dict_format=False)
-        if frac is not None:
-            if not 0 <= frac <= 1:
-                raise ValueError("frac은 0과 1 사이의 값이어야 합니다.")
-            n = int(len(cases) * frac)
-            
-        return LLMDataset(test_cases=random.sample(cases, n))
-    
-
+        
+        sampled_df = self._df.sample(
+            n=n, 
+            frac=frac, 
+            random_state=random_state
+        ).reset_index(drop=True)
+        
+        result = LLMDataset(test_cases=None)
+        result.df = sampled_df
+        return result
 
     def push_to_hub(self, repo_id: str, commit_message: Optional[str] = None, 
                     private: bool = False, token: Optional[str] = None, 
                     split: Optional[str] = None, **kwargs) -> str:
-            try:
-                from datasets import Dataset
-                from huggingface_hub import HfApi
-                import polars as pl
-            except ImportError:
-                raise ImportError(
-                    "이 메서드를 사용하려면 'datasets' 패키지가 필요합니다. "
-                    "'pip install datasets'로 설치하세요."
-                )
-
-            if '/' not in repo_id:
-                raise ValueError("repo_id는 'username/dataset-name' 형식이어야 합니다.")
-                
-            # Polars DataFrame에서 모든 값이 null인 열 찾기
-            null_counts = self._df.null_count()
-            total_rows = len(self)
-            
-            # 모든 값이 null인 열 찾기 (수정된 부분)
-            all_null_columns = []
-            for col_name, null_count in zip(self._df.columns, null_counts):
-                if null_count.item() == total_rows:  # .item()을 사용하여 스칼라 값으로 변환
-                    all_null_columns.append(col_name)
-            
-            if all_null_columns:
-                print(f"다음 열들이 모두 Null이어서 제외됩니다: {', '.join(all_null_columns)}")
-                # Null인 열 제거
-                cleaned_df = self._df.drop(all_null_columns)
-            else:
-                cleaned_df = self._df
-                
-            # Polars DataFrame을 딕셔너리 리스트로 변환
-            cleaned_data = cleaned_df.to_dicts()
-            
-            # Dataset 생성
-            dataset = Dataset.from_list(cleaned_data)
-            commit_message = commit_message or f"{len(self)}개의 예시가 포함된 데이터셋 업로드"
-
-            api = HfApi()
-            if token:
-                api.set_access_token(token)
-                
-            api.create_repo(repo_id=repo_id, repo_type="dataset", 
-                        private=private, exist_ok=True)
-                
-            return dataset.push_to_hub(
-                repo_id,
-                split=split,
-                private=private,
-                commit_message=commit_message,
-                token=token,
-                **kwargs
+        try:
+            from datasets import Dataset
+            from huggingface_hub import HfApi
+        except ImportError:
+            raise ImportError(
+                "이 메서드를 사용하려면 'datasets' 패키지가 필요합니다. "
+                "'pip install datasets'로 설치하세요."
             )
+
+        if '/' not in repo_id:
+            raise ValueError("repo_id는 'username/dataset-name' 형식이어야 합니다.")
+            
+        # Pandas DataFrame에서 모든 값이 null인 열 찾기
+        null_counts = self._df.isnull().sum()
+        total_rows = len(self)
+        
+        # 모든 값이 null인 열 찾기
+        all_null_columns = [col for col, count in null_counts.items() if count == total_rows]
+        
+        if all_null_columns:
+            print(f"다음 열들이 모두 Null이어서 제외됩니다: {', '.join(all_null_columns)}")
+            # Null인 열 제거
+            cleaned_df = self._df.drop(columns=all_null_columns)
+        else:
+            cleaned_df = self._df
+            
+        # Pandas DataFrame을 딕셔너리 리스트로 변환
+        cleaned_data = cleaned_df.to_dict('records')
+        
+        # Dataset 생성
+        dataset = Dataset.from_list(cleaned_data)
+        commit_message = commit_message or f"{len(self)}개의 예시가 포함된 데이터셋 업로드"
+
+        api = HfApi()
+        if token:
+            api.set_access_token(token)
+            
+        api.create_repo(repo_id=repo_id, repo_type="dataset", 
+                    private=private, exist_ok=True)
+            
+        return dataset.push_to_hub(
+            repo_id,
+            split=split,
+            private=private,
+            commit_message=commit_message,
+            token=token,
+            **kwargs
+        )
 
     @classmethod
     def from_huggingface_hub(cls, path: str, field_mapping: dict = None, **kwargs) -> 'LLMDataset':
         try:
             from datasets import load_dataset
-            import polars as pl
         except ImportError:
             raise ImportError(
                 "이 메서드를 사용하려면 'datasets' 패키지가 필요합니다. "
@@ -302,8 +289,8 @@ class LLMDataset:
                 mapped_item[target_field] = item.get(source_field) if source_field in available_fields else None
             data_dicts.append(mapped_item)
         
-        # Polars DataFrame 생성
-        df = pl.DataFrame(data_dicts)
+        # Pandas DataFrame 생성
+        df = pd.DataFrame(data_dicts)
         
         # 빈 인스턴스 생성
         instance = cls(test_cases=None) 
@@ -312,7 +299,6 @@ class LLMDataset:
         instance._df = df
         
         return instance
-
 
 
 class ResultDataset(LLMDataset):
@@ -331,21 +317,23 @@ class ResultDataset(LLMDataset):
             raise TypeError("'test_cases'는 리스트여야 합니다.")
 
         data = [case.to_dict() for case in self.test_cases]
-        self._df = pl.DataFrame(data)
+        self._df = pd.DataFrame(data)
         self.test_cases = None
 
     @property
-    def df(self) -> pl.DataFrame:
+    def df(self) -> pd.DataFrame:
         return self._df
 
     @df.setter
-    def df(self, value: pl.DataFrame) -> None:
-        if not isinstance(value, pl.DataFrame):
-            raise TypeError("입력은 polars.DataFrame 타입이어야 합니다.")
+    def df(self, value: pd.DataFrame) -> None:
+        if not isinstance(value, pd.DataFrame):
+            raise TypeError("입력은 pandas.DataFrame 타입이어야 합니다.")
         
         required_columns = {
-            'input', 'student_answer', 'teacher_answer', 'expected_output', 
-            'context', 'retrieval_context', 'reasoning', 'choices',
+            'input', 'student_answer', 
+            'teacher_answer', 'expected_output', 
+            'context', 'retrieval_context', 
+            'reasoning', 'choices',
             'score', 'metadata'
         }
         
@@ -363,7 +351,7 @@ class ResultDataset(LLMDataset):
                 idx = len(self) + idx
             if not (0 <= idx < len(self)):
                 raise IndexError("인덱스가 범위를 벗어났습니다.")
-            row_dict = {name: val for name, val in zip(self._df.columns, self._df.row(idx))}
+            row_dict = self._df.iloc[idx].to_dict()
             return LLMResult(
                 input=row_dict['input'],
                 student_answer=row_dict['student_answer'],
@@ -377,19 +365,19 @@ class ResultDataset(LLMDataset):
                 metadata=row_dict['metadata']
             )
         elif isinstance(idx, slice):
-            _df_slice = self._df[idx]
-            return [LLMResult(**{
-                'input': row['input'],
-                'student_answer': row['student_answer'],
-                'teacher_answer': row['teacher_answer'],
-                'expected_output': row['expected_output'],
-                'context': row['context'],
-                'retrieval_context': row['retrieval_context'],
-                'reasoning': row['reasoning'],
-                'choices': row['choices'],
-                'score': row['score'],
-                'metadata': row['metadata']
-            }) for row in _df_slice.iter_rows(named=True)]
+            df_slice = self._df.iloc[idx]
+            return [LLMResult(
+                input=row['input'],
+                student_answer=row['student_answer'],
+                teacher_answer=row['teacher_answer'],
+                expected_output=row['expected_output'],
+                context=row['context'],
+                retrieval_context=row['retrieval_context'],
+                reasoning=row['reasoning'],
+                choices=row['choices'],
+                score=row['score'],
+                metadata=row['metadata']
+            ) for _, row in df_slice.iterrows()]
         raise TypeError("인덱스는 정수 또는 슬라이스여야 합니다.")
 
     # 결과 데이터셋에 특화된 메서드들
@@ -399,24 +387,23 @@ class ResultDataset(LLMDataset):
 
     def get_score_distribution(self) -> Dict[str, int]:
         """점수 분포를 반환"""
-        return self._df.groupby('score').agg(
-            pl.count('score').alias('count')
-        ).to_dict(as_series=False)
+        score_counts = self._df['score'].value_counts().to_dict()
+        return {str(score): count for score, count in score_counts.items()}
 
     def filter_by_score_range(self, min_score: float, max_score: float) -> 'ResultDataset':
         """특정 점수 범위의 결과만 필터링"""
-        filtered_df = self._df.filter(
-            (pl.col('score') >= min_score) & (pl.col('score') <= max_score)
-        )
+        filtered_df = self._df[(self._df['score'] >= min_score) & (self._df['score'] <= max_score)]
         new_dataset = ResultDataset()
-        new_dataset.df = filtered_df
+        new_dataset.df = filtered_df.reset_index(drop=True)
         return new_dataset
 
     def get_metadata_summary(self) -> Dict:
         """메타데이터 필드의 요약 통계를 반환"""
-        metadata_list = self._df['metadata'].to_list()
+        metadata_list = self._df['metadata'].tolist()
         summary = {}
         for metadata in metadata_list:
+            if metadata is None:
+                continue
             for key, value in metadata.items():
                 if key not in summary:
                     summary[key] = []
@@ -427,7 +414,6 @@ class ResultDataset(LLMDataset):
     def from_huggingface_hub(cls, path: str, field_mapping: dict = None, **kwargs) -> 'ResultDataset':
         try:
             from datasets import load_dataset
-            import polars as pl
         except ImportError:
             raise ImportError(
                 "이 메서드를 사용하려면 'datasets' 패키지가 필요합니다. "
@@ -483,8 +469,8 @@ class ResultDataset(LLMDataset):
             mapped_item['output'] = mapped_item.pop('student_answer')
             data_dicts.append(mapped_item)
         
-        # Polars DataFrame 생성
-        df = pl.DataFrame(data_dicts)
+        # Pandas DataFrame 생성
+        df = pd.DataFrame(data_dicts)
         
         # 빈 인스턴스 생성
         instance = cls(test_cases=None)
