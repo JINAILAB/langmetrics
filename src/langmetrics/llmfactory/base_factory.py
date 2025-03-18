@@ -7,7 +7,7 @@ import asyncio
 import json
 from openai import APIError, RateLimitError, APITimeoutError, APIConnectionError
 from langchain_core.messages import AIMessage
-
+from langmetrics.utils import trimAndLoadJson
 
 class BaseFactory(ABC):
     """LLM 생성을 위한 추상 팩토리 클래스
@@ -29,37 +29,62 @@ class BaseFactory(ABC):
         
         
         # process_single_input 함수로 ainvoke 메서드 대체
-        async def wrapped_ainvoke(input_data: Dict[str, Any], config=None, **kwargs) -> str:
+        async def wrapped_ainvoke(input_data: Dict[str, Any], config=None, parse_json=False, **kwargs) -> str:
             """
             단일 입력에 대한 번역 결과를 얻습니다.
             (에러 처리 및 재시도 로직 포함)
             """
+            e = None
             retries = 0
             while retries < max_retries:
                 try:
                     result = await original_ainvoke(input_data, config, **kwargs)
+                    
+                    if parse_json:
+                        try:
+                            trimAndLoadJson(result.content)  # 출력 파싱
+                        except json.JSONDecodeError as json_err:
+                            print(f"JSONDecodeError in trimAndLoadJson: {json_err}, retry {retries+1}/{max_retries}")
+                            e = json_err
+                            retries += 1
+                            await asyncio.sleep(10)
+                            continue  # 다시 재시도
+                        
+                        except Exception as err:
+                            print(f"Unexpected error in trimAndLoadJson: {err}, retry {retries+1}/{max_retries}")
+                            retries += 1
+                            e = err
+                            await asyncio.sleep(10)
+                            continue
+                        
+
                     return result
-                except json.JSONDecodeError:
-                    print(f"JSONDecodeError encountered, retry {retries+1}/{max_retries}")
-                    retries += 1
-                    # 비동기 환경에서는 time.sleep 대신 asyncio.sleep 사용
-                    await asyncio.sleep(10)
-                except (APIError, RateLimitError, APITimeoutError, APIConnectionError) as e:
-                    print(f"API Error: {e}, retry {retries+1}/{max_retries}")
+
+                except json.JSONDecodeError as json_err:
+                    print(f"JSONDecodeError in ainvoke: {json_err}, retry {retries+1}/{max_retries}")
+                    e = json_err
                     retries += 1
                     await asyncio.sleep(10)
-                except Exception as e:
-                    print(f"Unexpected error: {e}, retry {retries+1}/{max_retries}")
+
+                except (APIError, RateLimitError, APITimeoutError, APIConnectionError) as err:
+                    e = err
+                    print(f"API Error: {err}, retry {retries+1}/{max_retries}")
                     retries += 1
                     await asyncio.sleep(10)
-            return AIMessage(content="")  # 재시도 초과 시 빈 문자열 반환
+
+                except Exception as err:
+                    print(f"Unexpected error: {err}, retry {retries+1}/{max_retries}")
+                    retries += 1
+                    e = err
+                    await asyncio.sleep(10)
+
+            return AIMessage(content="", answer_metadata={'error': e})
         
         # 원래 객체의 ainvoke 메서드를 래핑된 버전으로 교체
-        # llm.ainvoke = wrapped_ainvoke
         object.__setattr__(llm, "ainvoke", wrapped_ainvoke)
         
         return llm
-
+    
     
     
     @abstractmethod

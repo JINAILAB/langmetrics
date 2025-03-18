@@ -11,7 +11,7 @@ from langchain_community.chat_models import ChatClovaX
 from langmetrics.utils import trimAndLoadJson, load_json
 import json
 import asyncio
-from langmetrics.result import LLMResult
+from langmetrics.llmresult import LLMResult
 from pathlib import Path
 
 

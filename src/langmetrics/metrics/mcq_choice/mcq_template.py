@@ -1,7 +1,7 @@
-from typing import Literal, Dict, List
+from typing import Literal, Dict, List, Optional
 from langmetrics.metrics import BaseTemplate
 from pathlib import Path
-import json
+import toml
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
 
@@ -11,22 +11,22 @@ class MCQTemplate(BaseTemplate):
                  prompt_for_answer : str = None,):
         self.system_message_for_answer : SystemMessagePromptTemplate
         self.human_message_for_answer : HumanMessagePromptTemplate
-        self.prompt_for_answer : ChatPromptTemplate
+        self.prompt_for_answer : Optional[ChatPromptTemplate] = prompt_for_answer
         self.language = language
         self.template_type = template_type
         self._default_prompts = self._load_prompt_template()
         self._initialize_messages()
         
     def _load_prompt_template(self) -> Dict[str, Dict[str, str]]:
-        """Load prompt template from JSON file."""
-        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'mcq_choice_prompt.json'
+        """Load prompt template from toml file."""
+        toml_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'mcq_choice_prompt.toml'
         try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            with open(toml_path, 'r', encoding='utf-8') as f:
+                return toml.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Prompt template file not found at {json_path}")
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON format in prompt template file at {json_path}")
+            raise FileNotFoundError(f"Prompt template file not found at {toml_path}")
+        except toml.TomlDecodeError:
+            raise ValueError(f"Invalid toml format in prompt template file at {toml_path}")
 
     def _initialize_messages(self) -> None:
         self.system_message = SystemMessagePromptTemplate.from_template(

@@ -1,0 +1,87 @@
+[system_messages]
+en = "You are helpful AI assistant."
+ko = "당신은 유능한 전문가입니다."
+
+[reasoning]
+en = """Please solve the following multiple-choice question.
+Provide your reasoning and answer with only the letter (A, B, C, D, etc.).
+
+**
+IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning in english. 
+Example JSON:
+{{
+    "reasoning": "<your_reasoning. Think step by step deeply.>. So the answer is <your answer>",
+    "answer": "<your_answer>"
+}}
+**
+
+Question:
+{question}
+
+Choices:
+{choices}
+
+JSON:
+"""
+ko = """다음의 객관식 문제를 풀어주세요.
+추론 과정을 설명하고 정답은 알파벳(A, B, C, D 등)으로만 답해주세요.
+
+**
+중요 : 반드시 JSON 형식으로만 답변해주세요. 'reasoning' 키에는 추론 과정을 한국어로 작성합니다.
+JSON 예시:
+{{
+"reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 답은 <정답>입니다",
+"answer": "<정답>"
+}}
+**
+
+문제:
+{question}
+
+보기:
+{choices}
+
+JSON:
+"""
+
+[only_answer]
+en = """Please solve the following multiple-choice question.
+Provide your answer with only the letter (A, B, C, D, etc.).
+
+**
+IMPORTANT: Please make sure to only return in JSON format.
+Example JSON:
+{{
+    "answer": "<your_answer>"
+}}
+**
+
+<Question>
+{question}
+</Question>
+
+<Choices>
+{choices}
+</Choices>
+
+JSON:
+"""
+ko = """다음의 객관식 문제를 풀어주세요.
+추론 과정을 설명하고 정답은 알파벳(A, B, C, D 등)으로만 답해주세요.
+
+**
+중요 : 반드시 JSON 형식으로만 답변해주세요. 'answer' 키에는 정답을 작성해주세요.
+JSON 예시:
+{{
+"answer": "<정답>"
+}}
+**
+
+문제:
+{question}
+
+보기:
+{choices}
+
+JSON:
+"""

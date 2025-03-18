@@ -3,7 +3,7 @@ from ..llmtestcase import LLMTestCase
 from dataclasses import dataclass, field
 import pandas as pd
 from typing import List, Iterator, Union, Optional, Tuple, Dict
-from langmetrics.result import LLMResult
+from langmetrics.llmresult import LLMResult
 
 
 @dataclass
@@ -254,10 +254,10 @@ class LLMDataset:
         default_mapping = {
             'input': 'input',
             'output': 'output',
+            'scoring_model_output' : 'scoring_model_output',
             'expected_output': 'expected_output', 
             'context': 'context',
             'retrieval_context': 'retrieval_context',
-            'reasoning': 'reasoning',
             'choices': 'choices',
         }
         

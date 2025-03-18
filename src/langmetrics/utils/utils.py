@@ -15,6 +15,8 @@ import psutil
 import signal
 import ahocorasick
 from typing import List, Set
+import tomlkit
+import toml
 
 def string_search(dictionary: List[str], text: str) -> Set[str]:
     """
@@ -36,41 +38,6 @@ def string_search(dictionary: List[str], text: str) -> Set[str]:
         found_patterns.add(found_word)
         
     return found_patterns
-
-class ResultFileHandler:
-    """평가 결과 파일 처리를 위한 유틸리티 클래스"""
-    
-    def __init__(self, base_dir: str = "data/results"):
-        self.result_dir = Path(base_dir)
-        self.result_dir.mkdir(parents=True, exist_ok=True)
-        self.result_file = self.result_dir / "evaluation_results.csv"
-        self._initialize_result_file()
-    
-    def _initialize_result_file(self) -> None:
-        """결과 파일 초기화"""
-        if not self.result_file.exists():
-            headers = [
-                "evaluation_date",
-                "dataset_name",
-                "task_type",
-                "evaluation_method",
-                "evaluation_model",
-                "score_type",
-                "total_samples",
-                "score"
-            ]
-            pd.DataFrame(columns=headers).to_csv(self.result_file, index=False)
-    
-    def save_results(self, results: Dict) -> None:
-        """새로운 평가 결과 저장"""
-        results["evaluation_date"] = datetime.now().strftime("%Y-%m-%d")
-        pd.DataFrame([results]).to_csv(
-            self.result_file,
-            mode='a',
-            header=False,
-            index=False
-        )
-
 
 
 def trimAndLoadJson(
@@ -166,6 +133,41 @@ def save_json(data, file_path, indent=4, ensure_ascii=False):
         print(f"Successfully saved to {file_path}")
     except Exception as e:
         print(f"Error saving JSON: {e}")
+
+def save_toml(file_path: str, data: dict):
+    """가독성 높은 TOML 포맷으로 저장"""
+    toml_doc = tomlkit.document()
+    def process_data(data):
+        if isinstance(data, dict):
+            result = tomlkit.table()
+            for key, value in data.items():
+                result[key] = process_data(value)
+            return result
+        elif isinstance(data, list):
+            result = tomlkit.array()
+            for item in data:
+                result.append(process_data(item))
+            return result
+        elif isinstance(data, str) and '\n' in data:
+            # 줄바꿈이 있는 문자열을 멀티라인 문자열로 변환
+            return tomlkit.string(data, multiline=True)
+        else:
+            return data
+
+    # JSON 데이터를 TOML 구조로 변환
+    for key, value in data.items():
+        toml_doc[key] = process_data(value)
+
+    # TOML 파일 저장
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(tomlkit.dumps(toml_doc))
+        
+    print(f"TOML 저장 완료: {file_path}")
+    
+
+def load_toml(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return toml.load(f)
         
         
 def execute_shell_command(command: str) -> subprocess.Popen:
