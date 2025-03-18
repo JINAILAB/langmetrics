@@ -30,11 +30,12 @@ dependencies = [
     "pytest-cov>=4.1.0",
     "python-dotenv>=1.0.0",
     "sqlalchemy>=1.4.0",
+    "vllm",
     "psycopg2-binary>=2.9.0",
-    "sglang-router",
     "langchain-google-genai",
     "polars==1.21.0",
-    "aiolimiter"
+    "aiolimiter",
+    "ahocorasic"
 ]
 
 [project.urls]

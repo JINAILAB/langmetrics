@@ -16,51 +16,6 @@ from pathlib import Path
 
 
 class JudgeMetric(BaseMetric):
-    """
-    LLM 응답의 품질을 평가하는 메트릭 클래스입니다.
-    
-    이 클래스는 주어진 카테고리(예: 시간적 관련성, 정확성 등)에 따라 LLM의 응답을 평가합니다.
-    평가는 별도의 '평가자(judge)' LLM 모델을 사용하여 이루어지며, 필요한 경우 응답을 생성하는
-    '응답자(answer)' LLM 모델도 설정할 수 있습니다.
-    
-    평가 결과는 점수와 그 점수에 대한 근거(reasoning)를 포함합니다.
-    
-    속성:
-        answer_model: 답변을 생성하는 LLM 모델 (선택 사항)
-        score_model: 답변을 평가하는 LLM 모델
-        score_model_name: 평가 모델의 이름
-        verbose_mode: 상세 로깅 활성화 여부
-        template_language: 템플릿 언어 ('ko' 또는 'en')
-        generate_template_type: 템플릿 유형 ('reasoning' 또는 'only_answer')
-        category: 평가 카테고리 (예: 'temporal_relevance')
-        template: 평가에 사용되는 템플릿 객체
-        template_for_judge: 평가자 모델에 전달되는 템플릿 문자열
-        
-    입력 예시:
-        score_model = ChatOpenAI(model_name="gpt-4")
-        answer_model = ChatAnthropic(model_name="claude-3-opus-20240229")
-        judge_metric = JudgeMetric(
-            score_model=score_model,
-            answer_model=answer_model,
-            category='temporal_relevance',
-            verbose_mode=True,
-            template_language='ko'
-        )
-        
-    출력 예시:
-        LLMResult(
-            input="2023년 노벨 물리학상 수상자는 누구인가요?",
-            student_answer="2023년 노벨 물리학상은 앤 레러(Anne L'Huiller), 피에르 아고스티니(Pierre Agostini), 페렌츠 크라우스(Ferenc Krausz)가 수상했습니다.",
-            teacher_answer="{\"score\": 5, \"reasoning\": \"해당 답변은 2023년 노벨 물리학상 수상자 정보를 정확하게 제공하고 있습니다.\"}",
-            expected_output=None,
-            context=None,
-            retrieval_context=None,
-            score=5,
-            reasoning="해당 답변은 2023년 노벨 물리학상 수상자 정보를 정확하게 제공하고 있습니다.",
-            choices=None,
-            metadata={...}
-        )
-    """
     def __init__(
         self,
         score_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX],
@@ -166,8 +121,7 @@ class JudgeMetric(BaseMetric):
 
     async def ameasure(
         self,
-        testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset],
-        batch_size: int = 256  # 한 번에 처리할 최대 테스트케이스 수
+        testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
     ) -> Union[LLMResult, List[LLMResult]]:
         """
         비동기 방식으로 모델 답변의 정확도를 평가합니다.
@@ -203,18 +157,9 @@ class JudgeMetric(BaseMetric):
         """
         # 테스트 케이스를 표준화된 형식으로 변환
         testcases = self._normalize_testcases(testcase)
-        
-        all_results = []
-
-        # batch_size 만큼씩 끊어서 순차적으로 gather
-        for i in range(0, len(testcases), batch_size):
-            chunk = testcases[i:i + batch_size]
-            tasks = [asyncio.create_task(self._a_process_single_case(tc)) for tc in chunk]
-            results_chunk = await asyncio.gather(*tasks)
-            all_results.extend(results_chunk)
-
-        # 입력이 단일 LLMTestCase였다면 하나만 반환
-        return all_results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(all_results)
+        results = await asyncio.gather(*[self._a_process_single_case(case) for case in testcases])
+        results = ResultDataset(results)
+        return results[0] if isinstance(testcase, LLMTestCase) else results
 
     def _normalize_testcases(
         self, testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]

@@ -155,7 +155,8 @@ class MCQMetric(BaseMetric):
         
         주어진 테스트케이스에 대해 모델의 답변을 생성하거나 기존 답변을 평가하여 
         정확도를 측정합니다. 모든 처리는 비동기적으로 수행되어 대량의 테스트케이스를 
-        효율적으로 처리할 수 있습니다.
+        효율적으로 처리할 수 있습니다. langchain의 abatch 메서드를 사용하여 
+        한 번에 모든 케이스를 처리합니다.
         
         Args:
             testcase (Union[LLMTestCase, List[LLMTestCase], LLMDataset]): 
@@ -234,7 +235,7 @@ class MCQMetric(BaseMetric):
         else:
             raise TypeError("Invalid input type. Expected LLMTestCase, List[LLMTestCase], or LLMDataset")
 
-    def _process_generated_answer(self, response: AIMessage, case: LLMTestCase) -> dict:
+    def _process_generated_answer(self, response: AIMessage, case: LLMTestCase) -> LLMResult:
         """
         LLM 응답을 처리하여 결과를 생성합니다.
         
@@ -453,7 +454,6 @@ class MCQMetric(BaseMetric):
     def _build_prompt(self, case: LLMTestCase) -> str:
         """
         테스트케이스의 내용으로 프롬프트를 생성합니다.
-        
         문제와 선택지를 포맷팅하여 LLM에게 전달할 프롬프트를 구성합니다.
         
         Args:
@@ -465,11 +465,6 @@ class MCQMetric(BaseMetric):
         Notes:
             - 선택지는 'A: 항목1\nB: 항목2\n...' 형식으로 포맷팅됩니다.
             - 템플릿에 question과 choices 변수를 전달합니다.
-        
-        Examples:
-            >>> prompt = metric._build_prompt(testcase)
-            >>> print(prompt)
-            # 템플릿에 따른 최종 프롬프트 출력
         """
         choices_str = '\n'.join(f"{chr(65 + i)}: {value}" for i, value in enumerate(case.choices))
         return self.template_for_answer.format_messages(question=case.input, choices=choices_str)

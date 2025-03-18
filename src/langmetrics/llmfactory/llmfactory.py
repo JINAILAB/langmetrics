@@ -8,11 +8,10 @@ from langchain_community.chat_models import ChatClovaX
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .base_factory import BaseFactory
 from typing import Union
-from langmetrics.utils import execute_shell_command
-from sglang.utils import (
+from langmetrics.utils import(
+    execute_shell_command,
     wait_for_server,
-    terminate_process,
-)
+    terminate_process)
 
 class LocalChatOpenAI(ChatOpenAI):
     server_process: Optional[Any] = None  # 서버 프로세스용 필드 추가
@@ -95,19 +94,25 @@ class LocalLLMFactory(BaseFactory):
         print('waiting llm server boot')
         if config.dp == 1:
             server_process = execute_shell_command(
-        f"""
-    CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang.launch_server --model-path {config.model_name} \
-    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp} --random-seed {config.seed} --mem-fraction-static {config.mem_fraction_static} \
-    --max-running-request {config.max_running_request}
-    """
+        f"""CUDA_VISIBLE_DEVICES={config.gpus} vllm serve \
+--model {config.model_name} \
+--host 0.0.0.0 \
+--port {config.port} \
+--tensor-parallel-size {config.tp} \
+--seed {config.seed} \
+--gpu-memory-utilization {config.mem_fraction_static} \
+--max-num-seqs {config.max_running_request}"""
     )
         elif config.dp > 1:
             server_process = execute_shell_command(
-        f"""
-    CUDA_VISIBLE_DEVICES={config.gpus} python3 -m sglang_router.launch_server --model-path {config.model_name} \
-    --port {config.port} --host 0.0.0.0 --dp {config.dp} --tp {config.tp} --random-seed {config.seed} --mem-fraction-static {config.mem_fraction_static} \
-    --max-running-request {config.max_running_request}
-    """
+        f"""CUDA_VISIBLE_DEVICES={config.gpus} vllm serve \
+--model {config.model_name} \
+--host 0.0.0.0 \
+--port {config.port} \
+--tensor-parallel-size {config.tp} \
+--seed {config.seed} \
+--gpu-memory-utilization {config.mem_fraction_static} \
+--max-num-seqs {config.max_running_request}"""
     )
                     
         wait_for_server(f"http://localhost:{config.port}")
@@ -156,7 +161,7 @@ class LLMFactory:
         "gpt-4o": ModelConfig(
             model_name="gpt-4o",
             api_base="https://api.openai.com/v1",
-            api_key=os.getenv("OPENAI_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             rpm=500,
             seed=66,
@@ -166,7 +171,7 @@ class LLMFactory:
         "gpt-4o-mini": ModelConfig(
             model_name="gpt-4o-mini",
             api_base="https://api.openai.com/v1",
-            api_key=os.getenv("OPENAI_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             rpm=500,
             seed=66,
@@ -176,8 +181,8 @@ class LLMFactory:
         "deepseek-v3": ModelConfig(
             model_name="deepseek-chat",
             api_base="https://api.deepseek.com",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            max_tokens=500,
+            api_key=None,
+            max_tokens=4096,
             seed=66,
             provider="deepseek"
         ),
@@ -185,8 +190,8 @@ class LLMFactory:
         "deepseek-reasoner": ModelConfig(
             model_name="deepseek-reasoner",
             api_base="https://api.deepseek.com",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            max_tokens=500,
+            api_key=None,
+            max_tokens=4096,
             seed=66,
             provider="deepseek"
         ),
@@ -194,7 +199,7 @@ class LLMFactory:
         "claude-3.7-sonnet": ModelConfig(
             model_name="claude-3-7-sonnet-latest",
             api_base="https://api.anthropic.com",
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             provider="anthropic"
         ),
@@ -202,7 +207,7 @@ class LLMFactory:
         "claude-3.5-sonnet": ModelConfig(
             model_name="claude-3-5-sonnet-latest",
             api_base="https://api.anthropic.com",
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             provider="anthropic"
         ),
@@ -210,15 +215,15 @@ class LLMFactory:
         "claude-3.5-haiku": ModelConfig(
             model_name="claude-3-5-sonnet-latest",
             api_base="https://api.anthropic.com",
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             provider="anthropic"
         ),
     
         "naver": NaverModelConfig(
             model_name="HCX-003",
-            apigw_api_key=os.getenv("NCP_APIGW_API_KEY"),
-            api_key=os.getenv("NCP_CLOVASTUDIO_API_KEY"),
+            apigw_api_key=None,
+            api_key=None,
             max_tokens=4096,
             seed=66,
             provider="naver",
@@ -226,7 +231,7 @@ class LLMFactory:
         
         "gemini-2.0-flash": GeminiModelConfig(
             model_name="gemini-2.0-flash",
-            api_key=os.getenv("GEMINI_API_KEY"),
+            api_key=None,
             max_tokens=8000,
             seed=66,
             rpm=15,
@@ -264,7 +269,24 @@ class LLMFactory:
         """
         if model_name not in cls.DEFAULT_CONFIGS:
             raise ValueError(f"Unsupported model: {model_name}")
-        return cls.DEFAULT_CONFIGS[model_name]
+
+        config = cls.DEFAULT_CONFIGS[model_name]
+
+        if config.provider == "naver":
+            if not config.api_key:
+                config.api_key = os.getenv("NCP_CLOVASTUDIO_API_KEY")
+            if not config.apigw_api_key:
+                config.apigw_api_key = os.getenv("NCP_APIGW_API_KEY")
+            if not config.api_key or not config.apigw_api_key:
+                raise ValueError("Naver API 키가 제대로 설정되지 않았습니다.")
+        else:
+            if not config.api_key:
+                provider = config.provider.upper()
+                config.api_key = os.getenv(f"{provider}_API_KEY")
+            if not config.api_key:
+                raise ValueError(f"{model_name}의 API 키가 제대로 설정되지 않았습니다.")
+
+        return config
     
     @classmethod
     def _get_factory(cls, provider: str) -> BaseFactory:
@@ -284,7 +306,7 @@ class LLMFactory:
         return cls._factories[provider]
 
     @classmethod
-    def create_llm(cls, model_name_or_config: str | ModelConfig | LocalModelConfig, temperature: float = 0.7) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX]:
+    def create_llm(cls, model_name_or_config: str | ModelConfig | LocalModelConfig, temperature: float = 0.7, rpm: int = None) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX, ChatGoogleGenerativeAI, ChatDeepSeek, LocalChatOpenAI]:
         """LLM 인스턴스를 생성하는 통합 메서드
         
         등록된 모델명이나 커스텀 설정으로 LLM 인스턴스를 생성합니다.
@@ -307,22 +329,17 @@ class LLMFactory:
             ValueError: 지원하지 않는 모델이거나 프로바이더인 경우
         """
         if isinstance(model_name_or_config, str):
-            # 문자열인 경우 DEFAULT_CONFIGS에 있는지 확인
             if model_name_or_config in cls.DEFAULT_CONFIGS:
                 config = cls.get_config(model_name_or_config)
             else:
-                # DEFAULT_CONFIGS에 없는 경우 ValueError 발생
                 raise ValueError(f"Model '{model_name_or_config}' not found in DEFAULT_CONFIGS. Please provide a ModelConfig instance instead.")
-        # LocalModelConfig를 받을 경우 customllm 사용
         elif isinstance(model_name_or_config, LocalModelConfig):
             config = model_name_or_config
             factory = cls._get_factory('local')
-            return factory.create_llm(config, temperature)
+            return factory.create_llm(config, temperature, rpm=rpm)
         else:
-            # ModelConfig 인스턴스인 경우 직접 사용
             config = model_name_or_config
-            print(config)
-            
+        
         factory = cls._get_factory(config.provider)
-        return factory.create_llm(config, temperature)
+        return factory.create_llm(config, temperature, rpm=rpm)
 

@@ -6,7 +6,36 @@ import json
 import re
 import subprocess
 import sys
+import time
+import requests
+import weakref
+import threading
+import os
+import psutil
+import signal
+import ahocorasick
+from typing import List, Set
 
+def string_search(dictionary: List[str], text: str) -> Set[str]:
+    """
+    사전(dictionary)에 있는 여러 단어(패턴)들을 text 안에서 검색해 발견된 단어들의 집합을 반환한다.
+    """
+    # Aho-Corasick 자동화 구조 생성
+    automaton = ahocorasick.Automaton()
+
+    # 사전의 단어들을 트라이에 삽입
+    for idx, word in enumerate(dictionary):
+        automaton.add_word(word, word)
+
+    # 트라이에 대해 실패 링크 생성
+    automaton.make_automaton()
+
+    # 텍스트에서 단어 검색
+    found_patterns = set()
+    for end_idx, found_word in automaton.iter(text):
+        found_patterns.add(found_word)
+        
+    return found_patterns
 
 class ResultFileHandler:
     """평가 결과 파일 처리를 위한 유틸리티 클래스"""
@@ -159,3 +188,92 @@ def execute_shell_command(command: str) -> subprocess.Popen:
     command = re.sub(r'\s+', ' ', command).strip()
 
     return subprocess.Popen(command, shell=True, text=True, stderr=subprocess.STDOUT)
+
+def wait_for_server(base_url: str, timeout: int = None) -> None:
+    """서버의 /v1/models 엔드포인트를 주기적으로 확인하여 준비될 때까지 기다립니다.
+
+    인자:
+        base_url: 서버의 기본 URL
+        timeout: 기다릴 최대 시간(초 단위). None이면 무한히 기다림.
+    """
+    start_time = time.time()
+    while True:
+        try:
+            response = requests.get(
+                f"{base_url}/v1/models",
+                headers={"Authorization": "Bearer None"},
+            )
+            if response.status_code == 200:
+                time.sleep(5)
+                print(
+                    """\n
+                    참고: 보통 서버는 별도의 터미널에서 실행됩니다.
+                    현재 CI 병렬 환경에서 실행 중이므로 실제 성능과는 차이가 있을 수 있습니다.
+                    """
+                )
+                break
+
+            if timeout and time.time() - start_time > timeout:
+                raise TimeoutError("지정된 시간 내에 서버가 준비되지 않았습니다.")
+        except requests.exceptions.RequestException:
+            time.sleep(1)
+            
+            
+def kill_process_tree(parent_pid, include_parent: bool = True, skip_pid: int = None):
+    """프로세스와 모든 자식 프로세스를 종료합니다."""
+    # 로그 스팸 방지를 위해 SIGCHLD 핸들러를 제거합니다.
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+    # parent_pid가 None이면 현재 프로세스를 기준으로 설정합니다.
+    if parent_pid is None:
+        parent_pid = os.getpid()
+        include_parent = False
+
+    try:
+        itself = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return  # 프로세스가 없으면 종료합니다.
+
+    # 모든 자식 프로세스를 찾아 종료합니다.
+    children = itself.children(recursive=True)
+    for child in children:
+        if child.pid == skip_pid:
+            continue  # 지정된 PID는 건너뜁니다.
+        try:
+            child.kill()
+        except psutil.NoSuchProcess:
+            pass  # 이미 종료된 프로세스는 무시합니다.
+
+    # 부모 프로세스도 종료할지 여부를 확인합니다.
+    if include_parent:
+        if parent_pid == os.getpid():
+            sys.exit(0)  # 현재 프로세스라면 바로 종료합니다.
+
+        try:
+            itself.kill()
+            # SIGKILL로 종료되지 않는 경우 추가로 SIGQUIT 신호를 보냅니다.
+            itself.send_signal(signal.SIGQUIT)
+        except psutil.NoSuchProcess:
+            pass  # 이미 종료된 경우 무시합니다.
+        
+            
+def terminate_process(process):
+    """
+    Terminate the process and automatically release the reserved port.
+    """
+    process_socket_map = weakref.WeakKeyDictionary()
+    kill_process_tree(process.pid)
+
+    lock_socket = process_socket_map.pop(process, None)
+    if lock_socket is not None:
+        release_port(lock_socket)
+        
+def release_port(lock_socket):
+    """
+    Release the reserved port by closing the lock socket.
+    """
+    try:
+        lock_socket.close()
+    except Exception as e:
+        print(f"Error closing socket: {e}")
