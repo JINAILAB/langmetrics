@@ -254,7 +254,6 @@ class LLMDataset:
         default_mapping = {
             'input': 'input',
             'output': 'output',
-            'scoring_model_output' : 'scoring_model_output',
             'expected_output': 'expected_output', 
             'context': 'context',
             'retrieval_context': 'retrieval_context',
@@ -326,7 +325,7 @@ class ResultDataset(LLMDataset):
         
         required_columns = {
             'input', 'student_answer', 
-            'teacher_answer', 'expected_output', 
+            'scoring_model_output', 'expected_output', 
             'context', 'retrieval_context', 
             'reasoning', 'choices',
             'score', 'metadata'
@@ -349,28 +348,29 @@ class ResultDataset(LLMDataset):
             row_dict = self._df.iloc[idx].to_dict()
             return LLMResult(
                 input=row_dict['input'],
-                student_answer=row_dict['student_answer'],
-                teacher_answer=row_dict['teacher_answer'],
+                output=row_dict['output'],
+                scoring_model_output=row_dict['scoring_model_output'],
                 expected_output=row_dict['expected_output'],
                 context=row_dict['context'],
                 retrieval_context=row_dict['retrieval_context'],
-                reasoning=row_dict['reasoning'],
                 choices=row_dict['choices'],
                 score=row_dict['score'],
+                additional_info=row_dict['additional_info'],
                 metadata=row_dict['metadata']
             )
         elif isinstance(idx, slice):
             df_slice = self._df.iloc[idx]
             return [LLMResult(
                 input=row['input'],
-                student_answer=row['student_answer'],
-                teacher_answer=row['teacher_answer'],
+                output=row['output'],
+                scoring_model_output=row['scoring_model_output'],
                 expected_output=row['expected_output'],
                 context=row['context'],
                 retrieval_context=row['retrieval_context'],
                 reasoning=row['reasoning'],
                 choices=row['choices'],
                 score=row['score'],
+                additional_info=row_dict['additional_info'],
                 metadata=row['metadata']
             ) for _, row in df_slice.iterrows()]
         raise TypeError("인덱스는 정수 또는 슬라이스여야 합니다.")
@@ -418,13 +418,14 @@ class ResultDataset(LLMDataset):
         # 기본 필드 매핑 설정 (ResultDataset에 맞게 수정)
         default_mapping = {
             'input': 'input',
-            'output': 'student_answer',  # student_answer를 output으로 매핑
-            'teacher_answer': 'teacher_answer',
+            'output': 'output',  # output를 output으로 매핑
+            'scoring_model_output': 'scoring_model_output',
             'expected_output': 'expected_output',
             'context': 'context',
             'retrieval_context': 'retrieval_context',
             'reasoning': 'reasoning',
             'choices': 'choices',
+            'additional_info': 'additional_info',
             'score': 'score',
             'metadata': 'metadata'
         }
@@ -460,8 +461,8 @@ class ResultDataset(LLMDataset):
                 
                 mapped_item[target_field] = value
             
-            # student_answer를 output으로 변환 (LLMDataset 호환성)
-            mapped_item['output'] = mapped_item.pop('student_answer')
+            # output를 output으로 변환 (LLMDataset 호환성)
+            mapped_item['output'] = mapped_item.pop('output')
             data_dicts.append(mapped_item)
         
         # Pandas DataFrame 생성

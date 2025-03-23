@@ -68,6 +68,7 @@ class MCQMetric(BaseMetric):
         template_language: Literal['ko', 'en'] = 'ko',
         output_template_type: Literal['reasoning', 'only_answer'] = 'reasoning',
         template: Optional[Union[MCQTemplate, BaseTemplate]] = None,
+        max_concurrency: Optional[int] = 500,
     ):
         """
         객관식 문제 평가를 위한 메트릭 클래스의 초기화 함수
@@ -92,9 +93,9 @@ class MCQMetric(BaseMetric):
             ...     output_template_type='reasoning'
             ... )
         """
+        super().__init__(verbose_mode=verbose_mode, max_concurrency=max_concurrency)
         self.output_model = output_model
         self.output_model_name = output_model.model_name if output_model else ''
-        self.verbose_mode = verbose_mode
         self.template_language = template_language
         self.output_template_type = output_template_type
 
@@ -108,7 +109,7 @@ class MCQMetric(BaseMetric):
     async def ameasure(
         self, 
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset],
-        max_cocurrent = 500,
+        max_concurrent: Optional[int] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
         """
         모델 답변의 정확도를 비동기적으로 평가합니다.
@@ -121,8 +122,8 @@ class MCQMetric(BaseMetric):
         Args:
             testcase (Union[LLMTestCase, List[LLMTestCase], LLMDataset]): 
                 평가할 테스트케이스. 단일 케이스, 케이스 리스트, 또는 LLMDataset 형태로 제공 가능
-            max_cocurrent:
-                asyncio.gather 한번에 돌아가는 개수 제한
+            max_concurrent:
+                asyncio.gather 한번에 돌아가는 개수 
         
         Returns:
             Union[LLMResult, List[LLMResult]]: 
@@ -156,7 +157,10 @@ class MCQMetric(BaseMetric):
         self.validate_testcases(testcases)
         # validate case
         tasks = [self._a_process_single_case(case) for case in testcases]
-        results = await self.gather_with_concurrency(max_cocurrent, *tasks)
+        results = await self.gather_with_concurrency(
+            max_concurrent or self.semaphore._value, 
+            *tasks
+        )
         return results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(results)
 
     async def _a_process_single_case(self, case: LLMTestCase) -> LLMResult:
@@ -178,21 +182,40 @@ class MCQMetric(BaseMetric):
             - case.output이 이미 있으면 그대로 사용합니다.
             - 오류 발생 시 score=None과 오류 메시지를 포함한 결과를 반환합니다.
         """
-        if not case.output:
-            if self.output_model is None:
-                raise ValueError("output이 없고 output_model도 설정되지 않았습니다. output을 직접 제공하거나 output_model을 설정해주세요.")
-            response = await self._a_generate_answer_one_case(case)
-        else:  # output이 이미 있는 경우
-            # AIMessage로 변환하여 처리
-            response = AIMessage(
-                content=case.output,
-                response_metadata={
-                    'model_name': getattr(case, 'model_name', self.output_model_name),
-                    'token_usage': getattr(case, 'token_usage', {}),
-                }
+        try:
+            if not case.output:
+                if self.output_model is None:
+                    raise ValueError(
+                        "No output provided and no output model set. "
+                        "Either provide an output or set an output model."
+                    )
+                response = await self._a_generate_answer_one_case(case)
+            else:  # Use existing output
+                response = AIMessage(
+                    content=case.output,
+                    response_metadata={
+                        'model_name': getattr(case, 'model_name', self.output_model_name),
+                        'token_usage': getattr(case, 'token_usage', {}),
+                    }
+                )
+            
+            result = self._process_response_message(response, case)
+            return result
+        except Exception as e:
+            if self.verbose_mode:
+                print(f"Error processing case: {e}")
+            
+            # Return error result
+            return LLMResult(
+                input=case.input,
+                output=getattr(case, 'output', ''),
+                expected_output=case.expected_output,
+                choices=case.choices,
+                score=None,
+                metadata={'error': str(e)},
+                additional_info={}
             )
-        result = self._process_response_message(response, case)
-        return result
+
             
     def _process_response_message(self, response: AIMessage, case: LLMTestCase) -> dict:
         """
@@ -212,23 +235,30 @@ class MCQMetric(BaseMetric):
             - 응답은 JSON 형식({"answer": "A", "reasoning": "..."})을 기대합니다.
             - JSON 파싱 실패 시 빈 값으로 대체하고 오류 메시지를 메타데이터에 기록합니다.
         """
+        
         # 답변을 가져온 후 metadata 저장, case도 같이 업데이트 
         case.output = response.content
-        metadata = {}
-        metadata['output_model_name'] = self.output_model_name
-        metadata['token_usage'] = self._get_token_usage(response)
+        metadata = {
+            'output_model_name': self.output_model_name,
+            'token_usage': self._get_token_usage(response)
+        }
+        additional_info = response.additional_kwargs
         
         # output parse해서 답변 추출
         parsed_answer = self._parse_json_output(case.output)
         self._log_process_info(case)
+        
+        # Calculate score (1 for correct, 0 for incorrect)
+        score = 1 if parsed_answer == case.expected_output else 0
             
         return LLMResult(
                 input=case.input,
                 output=case.output,
                 expected_output=case.expected_output,
                 choices=case.choices,
-                score=int(parsed_answer == case.expected_output),
-                metadata=metadata
+                score=score,
+                metadata=metadata,
+                additional_info = additional_info
             )
 
     async def _a_generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
@@ -253,6 +283,9 @@ class MCQMetric(BaseMetric):
         """
         prompt = self._build_prompt(case)
         response = await self.output_model.ainvoke(prompt, parse_json=True)
+        
+        response.additional_kwargs['input_with_prompt'] = prompt[1].content # prompt 입력값 가져오기
+        
         return response
 
     def _build_prompt(self, case: LLMTestCase) -> str:
@@ -273,7 +306,7 @@ class MCQMetric(BaseMetric):
         choices_str = '\n'.join(f"{chr(65 + i)}: {value}" for i, value in enumerate(case.choices))
         return self.template_for_answer.format_messages(question=case.input, choices=choices_str)
 
-    def validate_testcase(self, case: LLMTestCase) -> None:
+    def _validate_testcase(self, case: LLMTestCase) -> None:
         """
         테스트케이스의 유효성을 검사합니다.
         MCQ metric은 input, choices, expected_output이 필수로 존재해야 합니다.

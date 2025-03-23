@@ -1,5 +1,5 @@
 from langmetrics.metrics.base_metric import BaseMetric
-from typing import Union, Literal, List
+from typing import Union, Literal, List, Optional, Dict, Any
 from langmetrics.llmtestcase import LLMTestCase
 from langmetrics.metrics.judge.judge_template import JudgeTemplate
 from langmetrics.llmdataset import LLMDataset, ResultDataset
@@ -8,7 +8,7 @@ from langmetrics.metrics import BaseTemplate
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import ChatClovaX
-from langmetrics.utils import trimAndLoadJson, load_json
+from langmetrics.utils import trimAndLoadJson, load_toml
 import json
 import asyncio
 from langmetrics.llmresult import LLMResult
@@ -16,350 +16,402 @@ from pathlib import Path
 
 
 class JudgeMetric(BaseMetric):
+    """    
+    판별 모델을 이용한 언어 모델 응답 평가 지표
+
+    이 클래스는 판별 역할을 하는 또 다른 언어 모델을 활용하여 언어 모델의 응답을 평가합니다.  
+    응답이 제공되지 않은 경우 선택적으로 응답을 생성할 수 있으며,  
+    시간적 적절성, 정확성 등 다양한 평가 기준을 바탕으로 응답을 평가할 수 있습니다.  
+
+    주요 기능:
+    1. 지정된 언어 모델을 사용하여 응답을 생성 (선택 사항)
+    2. 생성된 응답을 판별 모델을 이용해 평가
+    3. 판별 모델의 평가에서 점수 및 평가 근거 추출
+    4. 동기 및 비동기 처리 방식 지원
+
+    속성:
+    - output_model: 응답을 생성하는 데 사용되는 모델 (선택 사항)
+    - output_model_name: 응답 생성 모델의 이름
+    - score_model: 응답을 평가하는 모델
+    - score_model_name: 평가에 사용되는 모델의 이름
+    - verbose_mode: 상세 로그 출력 여부
+    - template_language: 프롬프트 템플릿 언어 ('ko' 또는 'en')
+    - generate_template_type: 응답 생성 시 사용하는 템플릿 유형
+    - category: 평가 기준 (예: 'temporal_relevance')
+    - template: 평가를 위한 프롬프트 템플릿
+    
+    Examples:
+        >>> from langchain_openai import ChatOpenAI
+        >>> from langmetrics.llmtestcase import LLMTestCase
+        >>> from langmetrics.metrics.judge.judge_metric import JudgeMetric
+        >>> 
+        >>> # 평가 모델 초기화
+        >>> score_model = ChatOpenAI(model="gpt-4o")
+        >>> 
+        >>> # 메트릭 초기화
+        >>> metric = JudgeMetric(
+        ...     score_model=score_model,
+        ...     category='temporal_relevance',
+        ...     verbose_mode=True,
+        ...     template_language='ko'
+        ... )
+        >>> 
+        >>> # 테스트 케이스 생성
+        >>> testcase = LLMTestCase(
+        ...     input="대한민국의 최근 기후변화 대응 정책은 어떻게 되나요?",
+        ...     output="대한민국은 2050년 탄소중립을 목표로 다양한 정책을 시행 중입니다..."
+        ... )
+        >>> 
+        >>> # 측정 실행
+        >>> result = metric.measure(testcase)
+        >>> print(f"Score: {result.score}, Reasoning: {result.reasoning}")
+    """
+
     def __init__(
         self,
         score_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX],
         category: str = 'temporal_relevance',
-        answer_model: Union[ChatOpenAI, ChatAnthropic, ChatClovaX] = None,
+        output_model: Optional[Union[ChatOpenAI, ChatAnthropic, ChatClovaX]] = None,
         verbose_mode: bool = False,
         template_language: Literal['ko', 'en'] = 'ko',
         generate_template_type: Literal['reasoning', 'only_answer'] = 'reasoning',
-        judge_template: Union[str, JudgeTemplate, BaseTemplate] = None,
+        judge_template: Optional[Union[str, JudgeTemplate, BaseTemplate]] = None,
+        max_concurrency: Optional[int] = 500,
     ):
         """
         JudgeMetric 클래스 초기화 메서드
         
-        매개변수:
+        Args:
             score_model (Union[ChatOpenAI, ChatAnthropic, ChatClovaX]): 
-                답변을 평가하는 LLM 모델
-            category (str, 선택 사항): 
-                평가 카테고리 (예: 'temporal_relevance', 'accuracy' 등)
-                기본값은 'temporal_relevance'
-            answer_model (Union[ChatOpenAI, ChatAnthropic, ChatClovaX], 선택 사항): 
-                답변을 생성하는 LLM 모델, None이면 답변이 이미 제공되어야 함
-                기본값은 None
-            verbose_mode (bool, 선택 사항): 
-                상세 로깅 활성화 여부
-                기본값은 False
-            template_language (Literal['ko', 'en'], 선택 사항): 
-                템플릿 언어 ('ko': 한국어, 'en': 영어)
-                기본값은 'ko'
-            generate_template_type (Literal['reasoning', 'only_answer'], 선택 사항): 
-                템플릿 유형 ('reasoning': 이유 포함, 'only_answer': 답변만)
-                기본값은 'reasoning'
-            judge_template (Union[str, JudgeTemplate, BaseTemplate], 선택 사항): 
-                평가에 사용할 사용자 정의 템플릿
-                기본값은 None (기본 템플릿 사용)
-                
-        입력 예시:
-            score_model = ChatOpenAI(model_name="gpt-4")
-            judge_metric = JudgeMetric(
-                score_model=score_model,
-                category='temporal_relevance',
-                template_language='ko'
-            )
+                평가에 사용되는 언어 모델
+            category (str, optional): 
+                평가 기준 (기본값: 'temporal_relevance')
+            output_model (Optional[Union[ChatOpenAI, ChatAnthropic, ChatClovaX]], optional): 
+                응답을 생성하는 데 사용되는 언어 모델. 없으면 테스트 케이스에 이미 output이 있어야 함
+            verbose_mode (bool, optional): 
+                상세 로그 출력 여부. True일 경우 처리 과정과 결과를 상세히 출력함
+            template_language (Literal['ko', 'en'], optional): 
+                템플릿 언어. 'ko'(한국어) 또는 'en'(영어) 선택 가능
+            generate_template_type (Literal['reasoning', 'only_answer'], optional): 
+                템플릿 유형. 'reasoning'(추론 과정 포함) 또는 'only_answer'(답만 제공) 선택 가능
+            judge_template (Optional[Union[str, JudgeTemplate, BaseTemplate]], optional): 
+                사용자 정의 평가 템플릿. 없으면 기본 JudgeTemplate 사용
+            max_concurrency (Optional[int], optional): 
+                비동기 처리 시 최대 동시 실행 작업 수
+        
+        Examples:
+            >>> score_model = ChatOpenAI(model="gpt-4o")
+            >>> judge_metric = JudgeMetric(
+            ...     score_model=score_model,
+            ...     category='temporal_relevance',
+            ...     template_language='ko'
+            ... )
         """
-        self.answer_model = answer_model
+        super().__init__(verbose_mode=verbose_mode, max_concurrency=max_concurrency)
+        self.output_model = output_model
+        self.output_model_name = output_model.model_name if output_model else ''
         self.score_model = score_model
         self.score_model_name = score_model.model_name
-        self.verbose_mode = verbose_mode
         self.template_language = template_language
         self.generate_template_type = generate_template_type
         self.category = category
+
         # 템플릿 클래스 초기화
-        self.template = (JudgeTemplate(self.template_language, self.generate_template_type, self.category) 
-                        if judge_template is None else judge_template)
+        if judge_template is None:
+            self.template = JudgeTemplate(
+                self.template_language, 
+                self.generate_template_type, 
+                self.category
+            )
+        else:
+            self.template = judge_template
         # judge를 위한 템플릿 문자열 가져오기
         self.template_for_judge = self.template.get_prompt_for_score()
 
     async def ameasure(
         self,
-        testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
+        testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset],
+        max_concurrent: Optional[int] = None
     ) -> Union[LLMResult, List[LLMResult]]:
         """
         비동기 방식으로 모델 답변의 정확도를 평가합니다.
         
-        이 메서드는 입력된 테스트 케이스(단일 또는 다수)에 대해 비동기적으로 LLM 응답을 평가합니다.
-        테스트 케이스에 output이 없고 answer_model이 설정되어 있으면 답변을 먼저 비동기적으로 생성한 후 평가합니다.
+        주어진 테스트케이스에 대해 모델의 답변을 생성하거나 기존 답변을 평가하여 
+        정확도를 측정합니다. 모든 처리는 비동기적으로 수행되어 대량의 테스트케이스를 
+        효율적으로 처리할 수 있습니다.
         
-        매개변수:
+        Args:
             testcase (Union[LLMTestCase, List[LLMTestCase], LLMDataset]): 
-                평가할 테스트 케이스(단일 테스트 케이스, 테스트 케이스 리스트 또는 LLMDataset)
-                
-        반환값:
+                평가할 테스트케이스. 단일 케이스, 케이스 리스트, 또는 LLMDataset 형태로 제공 가능
+            max_concurrent (Optional[int], optional):
+                asyncio.gather 한번에 돌아가는 개수
+        
+        Returns:
             Union[LLMResult, List[LLMResult]]: 
-                단일 테스트 케이스의 경우 LLMResult 객체,
-                다수 테스트 케이스의 경우 ResultDataset(LLMResult 리스트)
-                
-        예외:
-            ValueError: 테스트 케이스가 유효하지 않은 경우
-            TypeError: 테스트 케이스 유형이 잘못된 경우
-            
-        입력 예시:
-            testcases = [
-                LLMTestCase(input="2023년 노벨 물리학상 수상자는 누구인가요?"),
-                LLMTestCase(input="2023년 노벨 화학상 수상자는 누구인가요?")
-            ]
-            results = await judge_metric.ameasure(testcases)
-            
-        출력 예시:
-            ResultDataset([
-                LLMResult(input="2023년 노벨 물리학상 수상자는 누구인가요?", score=5, ...),
-                LLMResult(input="2023년 노벨 화학상 수상자는 누구인가요?", score=4, ...)
-            ])
+                측정 결과. 입력이 단일 케이스면 LLMResult, 
+                리스트나 데이터셋이면 ResultDataset(결과 리스트) 반환
+        
+        Raises:
+            ValueError: 테스트케이스 유효성 검사 실패 시 발생
+            TypeError: 지원되지 않는 입력 타입인 경우 발생
+        
+        Examples:
+            >>> # 비동기 실행을 위한 코드
+            >>> import asyncio
+            >>> 
+            >>> async def run_evaluation():
+            ...     # 단일 케이스 평가
+            ...     result = await metric.ameasure(testcase)
+            ...     print(f"Score: {result.score}, Reasoning: {result.reasoning}")
+            ...     
+            ...     # 여러 케이스 평가
+            ...     results = await metric.ameasure([testcase1, testcase2, testcase3])
+            ...     avg_score = sum(r.score for r in results) / len(results)
+            ...     print(f"Average score: {avg_score}")
+            >>> 
+            >>> # 비동기 함수 실행
+            >>> asyncio.run(run_evaluation())
         """
         # 테스트 케이스를 표준화된 형식으로 변환
         testcases = self._normalize_testcases(testcase)
-        results = await asyncio.gather(*[self._a_process_single_case(case) for case in testcases])
-        results = ResultDataset(results)
-        return results[0] if isinstance(testcase, LLMTestCase) else results
-
-
-    def _process_generated_answer(self, case: LLMTestCase, response: AIMessage, evaluate_response: AIMessage) -> dict:
-        """
-        LLM 응답을 처리하여 JSON 파싱, 메타데이터 업데이트 및 결과 생성까지 수행합니다.
+        # 테스트 케이스 유효성 검사
+        self.validate_testcases(testcases)
         
-        생성된 답변(response)과 그 평가(evaluate_response)를 처리하여 최종 LLMResult 객체를 생성합니다.
-        평가 응답에서 JSON을 추출하고, 토큰 사용량 등의 메타데이터를 수집합니다.
-        
-        매개변수:
-            case (LLMTestCase): 처리 중인 테스트 케이스
-            response (AIMessage): 학생 모델(answer_model)의 응답
-            evaluate_response (AIMessage): 평가 모델(score_model)의 응답
-            
-        반환값:
-            LLMResult: 처리된 결과 객체
-            
-        입력 예시:
-            case = LLMTestCase(input="최근 기후 변화가 생태계에 미치는 영향은?")
-            response = AIMessage(content="기후 변화는 여러 생물 종의 멸종 위기를 초래하고 있습니다...")
-            evaluate_response = AIMessage(content="{\"score\": 4, \"reasoning\": \"포괄적인 답변이지만 구체적인 사례가 부족합니다.\"}")
-            
-        출력 예시:
-            LLMResult(
-                input="최근 기후 변화가 생태계에 미치는 영향은?",
-                student_answer="기후 변화는 여러 생물 종의 멸종 위기를 초래하고 있습니다...",
-                teacher_answer="{\"score\": 4, \"reasoning\": \"포괄적인 답변이지만 구체적인 사례가 부족합니다.\"}",
-                score=4,
-                reasoning="포괄적인 답변이지만 구체적인 사례가 부족합니다.",
-                metadata={...}
-            )
-        """
-        # 테스트 케이스의 output 필드 업데이트
-        case.output = response.content
-        
-        # 메타데이터 초기화 및 채우기
-        metadata = {'teacher_template_language': self.template_language}
-        metadata['student_model_name'] = response.response_metadata.get('model_name', '')
-        metadata['teacher_model_name'] = evaluate_response.response_metadata.get('model_name', '')
-        
-        # 학생 모델(answer_model)의 토큰 사용량 정보 수집
-        student_token_usage = response.response_metadata.get('token_usage', {})
-        metadata['student_token_usage'] = {
-            'completion_tokens': student_token_usage.get('completion_tokens'),
-            'prompt_tokens': student_token_usage.get('prompt_tokens'),
-            'total_tokens': student_token_usage.get('total_tokens')
-        }
-        
-        # 평가 모델(score_model)의 토큰 사용량 정보 수집
-        teacher_token_usage = evaluate_response.response_metadata.get('token_usage', {})
-        metadata['teacher_token_usage'] = {
-            'completion_tokens': teacher_token_usage.get('completion_tokens'),
-            'prompt_tokens': teacher_token_usage.get('prompt_tokens'),
-            'total_tokens': teacher_token_usage.get('total_tokens')
-        }
-        
-        # 평가 응답에서 JSON 추출 시도
-        try:
-            parsed_output = trimAndLoadJson(evaluate_response.content)
-            parsed_output = {
-                'score': parsed_output.get('score', ''),
-                'reasoning': parsed_output.get('reasoning', '')
-            }
-        except json.JSONDecodeError:
-            # JSON 파싱 실패 시 경고 메시지 출력(verbose_mode가 활성화된 경우)
-            if self.verbose_mode:
-                print(f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}")
-            parsed_output = {'answer': '', 'reasoning': ''}
-            metadata['error'] = f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}"
-        
-        # 테스트 케이스의 reasoning 필드 업데이트
-        case.reasoning = parsed_output.get('reasoning', '')
-        
-        # verbose mode가 활성화된 경우 로그 출력
-        self._log_process_info(case, evaluate_response)
-            
-        # 최종 LLMResult 객체 생성 및 반환
-        return LLMResult(
-                input=getattr(case, 'input', ''),
-                student_answer=getattr(case, 'output', ''),
-                teacher_answer=evaluate_response.content,
-                expected_output=None,
-                context=None,
-                retrieval_context=None,
-                score=parsed_output.get('score', ''),
-                reasoning=parsed_output.get('reasoning', ''),
-                choices=getattr(case, 'choices', ''),
-                metadata=metadata
-            )
+        # 각 테스트 케이스에 대한 비동기 처리 작업 생성
+        tasks = [self._a_process_single_case(case) for case in testcases]
+        results = await self.gather_with_concurrency(
+            max_concurrent or self.semaphore._value, 
+            *tasks
+        )
+        # 단일 케이스인 경우 첫 번째 결과만 반환, 그렇지 않으면 전체 결과셋 반환
+        return results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(results)
 
     async def _a_process_single_case(self, case: LLMTestCase) -> LLMResult:
         """
-        비동기 방식으로 단일 테스트케이스를 처리합니다.
+        단일 테스트케이스를 비동기적으로 처리합니다.
         
-        테스트 케이스를 검증하고, 필요한 경우 비동기적으로 답변을 생성한 후,
-        그 답변을 평가하여 최종 결과를 반환합니다.
+        답변을 비동기적으로 생성하거나 기존 답변을 평가한 후 
+        결과를 처리하여 반환합니다. 처리 과정에서 오류가 발생하면 
+        오류 정보를 포함한 결과를 반환합니다.
         
-        매개변수:
-            case (LLMTestCase): 처리할 테스트 케이스
-            
-        반환값:
+        Args:
+            case (LLMTestCase): 처리할 테스트케이스
+        
+        Returns:
             LLMResult: 처리된 결과 객체
-            
-        예외:
-            ValueError: 테스트 케이스가 유효하지 않거나 필요한 모델이 설정되지 않은 경우
-            
-        입력 예시:
-            case = LLMTestCase(input="양자 컴퓨팅의 미래 전망은 어떻게 되나요?")
-            
-        출력 예시:
-            LLMResult(
-                input="양자 컴퓨팅의 미래 전망은 어떻게 되나요?",
-                student_answer="양자 컴퓨팅은 암호화, 신약 개발, 기계 학습 등의 분야에서 혁신을 가져올 것으로 예상됩니다...",
-                teacher_answer="{\"score\": 4, \"reasoning\": \"주요 응용 분야는 언급했으나, 기술적 한계에 대한 설명이 부족합니다.\"}"
-                score=4,
-                reasoning="주요 응용 분야는 언급했으나, 기술적 한계에 대한 설명이 부족합니다.",
-                metadata={...}
-            )
+        
+        Notes:
+            - case.output이 없고 output_model이 있으면 답변을 비동기적으로 생성합니다.
+            - case.output이 이미 있으면 그대로 사용합니다.
+            - 오류 발생 시 score=None과 오류 메시지를 포함한 결과를 반환합니다.
         """
         try:
-            # 테스트 케이스 검증
+            # 테스트 케이스 유효성 검사
             self._validate_testcase(case)
             
-            # output이 없는 경우 answer_model을 사용하여 비동기적으로 답변 생성
+            # output이 없는 경우 output_model을 사용하여 비동기적으로 답변 생성
             if not case.output:
-                if self.answer_model is None:
+                if self.output_model is None:
                     raise ValueError(
-                        "output이 없고 answer_model도 설정되지 않았습니다. output을 직접 제공하거나 answer_model을 설정해주세요.")
-                response = self._a_generate_answer_one_case(case)
+                        "No output provided and no output model set. "
+                        "Either provide an output or set an output model."
+                    )
+                response = await self._a_generate_answer_one_case(case)
             else:
                 # output이 이미 있는 경우 AIMessage 객체로 변환
                 response = AIMessage(
                     content=case.output,
                     response_metadata={
-                        'model_name': getattr(case, 'model_name', ''),
+                        'model_name': getattr(case, 'model_name', self.output_model_name),
                         'token_usage': getattr(case, 'token_usage', {})
                     }
                 )
                 
             # 답변 평가
-            evaluate_response = self._evaluate_answer(case, response)
+            evaluate_response = await self._a_evaluate_answer(case, response)
+            
             
             # 생성된 답변 처리
-            result = self._process_generated_answer(case, response, evaluate_response)
+            result = self._process_response_message(response, evaluate_response, case)
+            
             
             return result
 
         except Exception as e:
-            # 오류 발생 시 로그 출력 및 기본 결과 반환
-            print(f"Error processing test case: {str(e)}")
+            if self.verbose_mode:
+                print(f"Error processing case: {e}")
+            
+            # 오류 발생 시 기본 결과 반환
             return LLMResult(
-                question=getattr(case, 'input', ''),
-                student_answer=getattr(case, 'output', ''),
-                teacher_answer=evaluate_response.content,
+                input=case.input,
+                output=getattr(case, 'output', ''),
                 expected_output=None,
-                context=None,
-                retrieval_context=None,
-                reasoning=getattr(case, 'reasoning', ''),
-                score=0,
-                metadata=getattr(case, 'metadata', {})
+                score=None,
+                metadata={'error': str(e)},
+                additional_info={}
             )
 
-    def _generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
+    def _process_response_message(self, response: AIMessage, evaluate_response: AIMessage, case: LLMTestCase) -> LLMResult:
         """
-        LLM을 사용하여 동기 방식으로 답변을 생성합니다.
+        LLM 응답을 처리하여 결과를 생성합니다.
         
-        answer_model을 사용하여 테스트 케이스의 입력에 대한 답변을 생성합니다.
+        LLM의 응답과 그 평가를 처리하여 최종 LLMResult 객체를 생성합니다.
+        평가 응답에서 JSON을 추출하고, 메타데이터를 업데이트합니다.
         
-        매개변수:
-            case (LLMTestCase): 답변을 생성할 테스트 케이스
-            
-        반환값:
-            AIMessage: 생성된 답변을 포함하는 AIMessage 객체
-            
-        예외:
-            RuntimeError: 답변 생성 중 오류가 발생한 경우
-            
-        입력 예시:
-            case = LLMTestCase(input="자연어 처리란 무엇인가요?")
-            
-        출력 예시:
-            AIMessage(
-                content="자연어 처리(NLP)는 컴퓨터가 인간의 언어를 이해하고 처리하는 인공지능의 한 분야입니다...",
-                response_metadata={...}
-            )
+        Args:
+            response (AIMessage): 응답 생성 모델의 응답
+            evaluate_response (AIMessage): 평가 모델의 응답
+            case (LLMTestCase): 처리 중인 테스트케이스
+        
+        Returns:
+            LLMResult: 처리된 결과 객체
+        
+        Notes:
+            - 평가 응답은 JSON 형식({"score": 5, "reasoning": "..."})을 기대합니다.
+            - JSON 파싱 실패 시 빈 값으로 대체하고 오류 메시지를 메타데이터에 기록합니다.
         """
+        # 답변을 가져온 후 metadata 저장
+        case.output = response.content
+        
+        # 메타데이터 초기화 및 채우기
+        metadata = {
+            'output_model_name': self.output_model_name,
+            'score_model_name': self.score_model_name,
+            'template_language': self.template_language,
+            'category': self.category
+        }
+        
+        # 토큰 사용량 정보 수집
+        output_token_usage = self._get_token_usage(response)
+        score_token_usage = self._get_token_usage(evaluate_response)
+        
+        if output_token_usage:
+            metadata['output_token_usage'] = output_token_usage
+        
+        if score_token_usage:
+            metadata['score_token_usage'] = score_token_usage
+        
+        # 평가 응답에서 JSON 추출 시도
         try:
-            # answer_model을 사용하여 답변 생성
-            return self.answer_model.invoke(case.input)
-        except Exception as e:
-            # 오류 발생 시 예외 발생
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            parsed_output = trimAndLoadJson(evaluate_response.content)
+            score = parsed_output.get('score', '')
+        except json.JSONDecodeError:
+            # JSON 파싱 실패 시 경고 메시지 출력(verbose_mode가 활성화된 경우)
+            if self.verbose_mode:
+                print(f"Warning: JSON parsing failed. Raw output: {evaluate_response.content}")
+            score = None
+            metadata['error'] = f"JSON parsing failed: {evaluate_response.content}"
+        
+        # verbose mode가 활성화된 경우 로그 출력
+        self._log_process_info(case)
+            
+        # 추가 정보 저장
+        additional_info = evaluate_response.additional_kwargs
+        
+        # 최종 LLMResult 객체 생성 및 반환
+        return LLMResult(
+            input=case.input,
+            output=case.output,
+            expected_output=None,
+            score=score,
+            metadata=metadata,
+            additional_info=additional_info
+        )
 
     async def _a_generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
         """
-        LLM을 사용하여 비동기 방식으로 답변을 생성합니다.
+        LLM을 사용하여 비동기적으로 답변을 생성합니다.
+        
+        테스트케이스의 입력을 사용하여 output_model을 통해
+        비동기적으로 답변을 생성합니다.
+        
+        Args:
+            case (LLMTestCase): 답변을 생성할 테스트케이스
+        
+        Returns:
+            AIMessage: 생성된 답변 메시지
+        
+        Raises:
+            RuntimeError: 답변 생성 과정에서 오류 발생 시
+        
+        Examples:
+            >>> response = await metric._a_generate_answer_one_case(testcase)
+            >>> print(response.content)  # 생성된 답변 내용
         """
-        try:
-            return await self.answer_model.ainvoke(case.input)
-        except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
 
-    def _evaluate_answer(self, case: LLMTestCase, response : AIMessage) -> dict:
+        response = await self.output_model.ainvoke(case.input)
+        
+        return response
+
+    async def _a_evaluate_answer(self, case: LLMTestCase, response: AIMessage) -> AIMessage:
         """
-        동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
+        LLM을 사용하여 비동기적으로 답변을 평가합니다.
+        
+        테스트케이스의 입력과 생성된 답변을 사용하여 score_model을 통해
+        비동기적으로 답변을 평가합니다.
+        
+        Args:
+            case (LLMTestCase): 평가할 테스트케이스
+            response (AIMessage): 평가할 답변
+        
+        Returns:
+            AIMessage: 평가 결과 메시지
+        
+        Raises:
+            RuntimeError: 평가 과정에서 오류 발생 시
         """
         try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
-            evaluation_response = self.score_model.invoke(evaluation_prompt)
+            # 평가를 위한 프롬프트 생성
+            evaluation_prompt = self.template_for_judge.format_messages(
+                question=case.input,
+                answer=response.content
+            )
+            
+            # score_model을 사용하여 비동기적으로 평가 수행
+            evaluation_response = await self.score_model.ainvoke(
+                evaluation_prompt, 
+                parse_json=True
+            )
+            
+            evaluation_response.additional_kwargs['input_with_prompt'] = evaluation_prompt[0].content # prompt 입력값 가져오기
+            
+            
             return evaluation_response
         except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
-
-    async def _a_evaluate_answer(self, case: LLMTestCase, response: AIMessage) -> dict:
-        """
-        비동기 방식으로 score 모델을 사용하여 답변을 평가합니다.
-        """
-        try:
-            evaluation_prompt = self.template.format_prompt(question=case.input, answer=response.content)
-            evaluation_response = self.score_model.ainvoke(evaluation_prompt)
-            return evaluation_response
-        except Exception as e:
-            raise RuntimeError(f"답변 생성 중 오류 발생: {str(e)}")
+            # 오류 발생 시 예외 발생
+            raise RuntimeError(f"답변 평가 중 오류 발생: {str(e)}")
 
     def _validate_testcase(self, case: LLMTestCase) -> None:
         """
         테스트케이스의 유효성을 검사합니다.
+        JudgeMetric은 input이 필수로 존재해야 합니다.
+        
+        Args:
+            case (LLMTestCase): 검사할 테스트케이스
+        
+        Raises:
+            ValueError: 필수 속성이 없거나 값이 비어있는 경우
+        
+        Notes:
+            필수 속성:
+            - input: 입력 질문 또는 지시
         """
         if not hasattr(case, 'input'):
             raise ValueError("테스트케이스는 'input' 속성을 가져야 합니다.")
         if not case.input:
             raise ValueError("input이 비어있습니다.")
-    
-    def _log_process_info(self, case: LLMTestCase, evaluate_response: LLMResult):
-        if self.verbose_mode:
-                print(f"Input: {case.input}")
-                print(f"Student answer: {case.output}")
-                print(f"teacher answer: {evaluate_response.content}")
-                print(f"Reasoning: {case.reasoning}")
-
+        else:
+            if self.verbose_mode:
+                print('테스트케이스 유효성 검사를 통과했습니다.')
 
     @classmethod
     def get_score_category(cls):
-        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.json'
-        data = load_json(json_path)
+        """
+        사용 가능한 평가 카테고리 목록을 반환합니다.
+        
+        Returns:
+            List[str]: 사용 가능한 평가 카테고리 목록
+        """
+        toml_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.toml'
+        data = load_toml(toml_path)
         return list(data['category'].keys())
-
-    @property
-    def __name__(self):
-        return "JudgeMetric"

@@ -2,6 +2,7 @@ from typing import Literal, Dict, List
 from langmetrics.metrics import BaseTemplate
 from pathlib import Path
 import json
+import toml
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
 
@@ -22,14 +23,14 @@ class JudgeTemplate(BaseTemplate):
         
     def _load_prompt_template(self) -> Dict[str, Dict[str, str]]:
         """Load prompt template from JSON file."""
-        json_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.json'
+        toml_path = Path(__file__).parent.parent.parent / 'prompt_storage' / 'medical_evaluate_prompt.toml'
         try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            with open(toml_path, 'r', encoding='utf-8') as f:
+                return toml.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Prompt template file not found at {json_path}")
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON format in prompt template file at {json_path}")
+            raise FileNotFoundError(f"Prompt template file not found at {toml_path}")
+        except toml.TomlDecodeError:
+            raise ValueError(f"Invalid toml format in prompt template file at {toml_path}")
 
     def _initialize_messages(self) -> None:        
         # Get category-specific template

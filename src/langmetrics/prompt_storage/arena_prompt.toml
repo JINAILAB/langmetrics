@@ -1,87 +1,166 @@
-[system_messages]
-en = "You are helpful AI assistant."
-ko = "당신은 유능한 전문가입니다."
+# arena_prompt.toml
+[arena_mode.model_vs_model]
+ko = """공정한 심사위원으로서 다음 사용자 질문에 대한 두 AI 어시스턴트의 응답 품질을 평가해주세요. 어시스턴트 A의 답변과 어시스턴트 B의 답변을 비교하여 어느 것이 더 좋은지 평가하는 것이 당신의 임무입니다.
 
-[reasoning]
-en = """Please solve the following multiple-choice question.
-Provide your reasoning and answer with only the letter (A, B, C, D, etc.).
+평가를 시작하기 전에 먼저 질문에 대한 자체 답변을 생성하세요. 심사하기 전에 반드시 자체 답변을 제공해야 합니다.
 
-**
-IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning. 
-Example JSON:
-{{
-    "reasoning": "<your_reasoning. Think step by step deeply.>. So the answer is <your answer>",
-    "answer": "<your_answer>"
-}}
-**
+어시스턴트의 답변을 평가할 때, 당신의 답변과 두 어시스턴트의 답변을 비교하세요. 모든 오류나 부정확한 정보를 식별하고 수정해야 합니다.
 
-Question:
+답변이 도움이 되는지, 관련성이 있는지, 간결한지 고려하세요. 도움이 된다는 것은 답변이 제시된 질문에 올바르게 응답하거나 지시를 따르는 것을 의미합니다. 사용자 질문에 모호함이나 여러 해석이 가능한 경우, 가정에 기반한 답변을 제공하기보다 사용자에게 명확히 할 것을 요청하는 것이 더 도움이 되고 적절합니다. 관련성이란 응답의 모든 부분이 질문과 밀접하게 연결되거나 적절한지를 의미합니다. 간결함은 응답이 명확하고 장황하거나 과도하지 않음을 의미합니다.
+
+필요한 경우 어시스턴트 답변의 창의성과 참신함도 고려하세요. 마지막으로 사용자 질문에 응답할 때 포함하면 유익할 어시스턴트 답변에서 누락된 중요한 정보를 식별하세요.
+
+설명 후에는 다음 선택지 중 하나를 최종 판결로 명확히 표시하세요:
+
+1. 어시스턴트 A가 훨씬 더 좋음: 
+{{"reasoning": "어시스턴트 A가 훨씬 더 좋은 이유...", "score": 2}}
+
+2. 어시스턴트 A가 약간 더 좋음: 
+{{"reasoning": "어시스턴트 A가 약간 더 좋은 이유...", "score": 1}}
+
+3. 비슷함: 
+{{"reasoning": "두 어시스턴트가 비슷한 이유...", "score": 0}}
+
+4. 어시스턴트 B가 약간 더 좋음: 
+{{"reasoning": "어시스턴트 B가 약간 더 좋은 이유...", "score": -1}}
+
+5. 어시스턴트 B가 훨씬 더 좋음: 
+{{"reasoning": "어시스턴트 B가 훨씬 더 좋은 이유...", "score": -2}}
+
+응답과 점수는 반드시 JSON 형식으로 제공해야 합니다. "score"는 어시스턴트 A가 많이 좋다면 2, 약간 좋다면 1, 비기면 0, 약간 안 좋다면 -1, 많이 안 좋다면 -2로 표시하세요.
+
+<|사용자 질문|>
 {question}
 
-Choices:
-{choices}
+<|어시스턴트 A의 답변 시작|>
+{answer_1}
+<|어시스턴트 A의 답변 끝|>
 
-JSON:
-"""
-ko = """다음의 객관식 문제를 풀어주세요.
-추론 과정을 설명하고 정답은 알파벳(A, B, C, D 등)으로만 답해주세요.
-
-**
-중요 : 반드시 JSON 형식으로만 답변해주세요. 'reasoning' 키에는 추론 과정을 설명해주세요.
-JSON 예시:
-{{
-"reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 답은 <정답>입니다",
-"answer": "<정답>"
-}}
-**
-
-문제:
-{question}
-
-보기:
-{choices}
-
-JSON:
+<|어시스턴트 B의 답변 시작|>
+{answer_2}
+<|어시스턴트 B의 답변 끝|>
 """
 
-[only_answer]
-en = """Please solve the following multiple-choice question.
-Provide your answer with only the letter (A, B, C, D, etc.).
+en = """Please act as an impartial judge and evaluate the quality of the responses provided by two AI assistants to the user prompt displayed below. You will be given assistant A's answer and assistant B's answer. Your job is to evaluate which assistant's answer is better.
 
-**
-IMPORTANT: Please make sure to only return in JSON format.
-Example JSON:
-{
-    "answer": "<your_answer>"
-}
-**
+Begin your evaluation by generating your own answer to the prompt. You must provide your answers before judging any answers.
 
-<Question>
+When evaluating the assistants' answers, compare both assistants' answers with your answer. You must identify and correct any mistakes or inaccurate information.
+
+Then consider if the assistant's answers are helpful, relevant, and concise. Helpful means the answer correctly responds to the prompt or follows the instructions. Note when user prompt has any ambiguity or more than one interpretation, it is more helpful and appropriate to ask for clarifications or more information from the user than providing an answer based on assumptions. Relevant means all parts of the response closely connect or are appropriate to what is being asked. Concise means the response is clear and not verbose or excessive.
+
+Then consider the creativity and novelty of the assistant's answers when needed. Finally, identify any missing important information in the assistants' answers that would be beneficial to include when responding to the user prompt.
+
+After providing your explanation, you must output one of the following choices as your final verdict with JSON format:
+
+1. Assistant A is significantly better: 
+{{"reasoning": "Why assistant A is significantly better...", "score": 2}}
+
+2. Assistant A is slightly better: 
+{{"reasoning": "Why assistant A is slightly better...", "score": 1}}
+
+3. Tie, relatively the same: 
+{{"reasoning": "Why both assistants are similar...", "score": 0}}
+
+4. Assistant B is slightly better: 
+{{"reasoning": "Why assistant B is slightly better...", "score": -1}}
+
+5. Assistant B is significantly better: 
+{{"reasoning": "Why assistant B is significantly better...", "score": -2}}
+
+Your response and score must be provided in JSON format. The "score" should be 2 if assistant A is significantly better, 1 if assistant A is slightly better, 0 for a tie, -1 if assistant B is slightly better, and -2 if assistant B is significantly better.
+
+<|User Prompt|>
 {question}
-</Question>
 
-<Choices>
-{choices}
-</Choices>
+<|The Start of Assistant A's Answer|>
+{answer_1}
+<|The End of Assistant A's Answer|>
 
-JSON:
+<|The Start of Assistant B's Answer|>
+{answer_2}
+<|The End of Assistant B's Answer|>
 """
-ko = """다음의 객관식 문제를 풀어주세요.
-추론 과정을 설명하고 정답은 알파벳(A, B, C, D 등)으로만 답해주세요.
 
-**
-중요 : 반드시 JSON 형식으로만 답변해주세요. 'answer' 키에는 정답을 작성해주세요.
-JSON 예시:
-{{
-"answer": "<정답>"
-}}
-**
+[arena_mode.context_vs_model]
+ko = """공정한 심사위원으로서 참조 컨텍스트와 AI 어시스턴트의 응답을 비교 평가해주세요. 당신의 임무는 주어진 사용자 질문에 대해 참조 컨텍스트와 어시스턴트의 답변을 비교하여 어느 쪽이 더 정확하고 유용한지 평가하는 것입니다.
 
-문제:
+평가를 시작하기 전에 먼저 질문에 대한 자체 답변을 생성하세요. 심사하기 전에 반드시 자체 답변을 제공해야 합니다.
+
+참조 컨텍스트와 어시스턴트의 답변을 평가할 때, 당신의 답변과 함께 비교하세요. 모든 오류나 부정확한 정보를 식별하고 수정해야 합니다.
+
+어시스턴트의 답변이 참조 컨텍스트에 비해 얼마나 정확한지, 관련성이 있는지, 간결한지 고려하세요. 정확성은 답변이 참조 컨텍스트의 정보를 올바르게 반영하는 것을 의미합니다. 관련성이란 응답의 모든 부분이 질문과 참조 컨텍스트에 밀접하게 연결되거나 적절한지를 의미합니다. 간결함은 응답이 명확하고 장황하거나 과도하지 않음을 의미합니다.
+
+어시스턴트가 참조 컨텍스트의 정보를 얼마나 잘 활용했는지, 불필요한 정보를 추가했는지, 중요한 정보를 누락했는지 평가하세요. 
+
+설명 후에는 다음 선택지 중 하나를 최종 판결로 명확히 표시하세요:
+
+1. 참조 컨텍스트가 훨씬 더 좋음: 
+{{"reasoning": "참조 컨텍스트가 훨씬 더 좋은 이유...", "score": 2}}
+
+2. 참조 컨텍스트가 약간 더 좋음: 
+{{"reasoning": "참조 컨텍스트가 약간 더 좋은 이유...", "score": 1}}
+
+3. 비슷함: 
+{{"reasoning": "참조 컨텍스트와 어시스턴트 답변이 비슷한 이유...", "score": 0}}
+
+4. 어시스턴트 답변이 약간 더 좋음: 
+{{"reasoning": "어시스턴트 답변이 약간 더 좋은 이유...", "score": -1}}
+
+5. 어시스턴트 답변이 훨씬 더 좋음: 
+{{"reasoning": "어시스턴트 답변이 훨씬 더 좋은 이유...", "score": -2}}
+
+응답과 점수는 반드시 JSON 형식으로 제공해야 합니다. "score"는 참조 컨텍스트가 많이 좋다면 2, 약간 좋다면 1, 비기면 0, 약간 안 좋다면 -1, 많이 안 좋다면 -2로 표시하세요.
+
+<|사용자 질문|>
 {question}
 
-보기:
-{choices}
+<|참조 컨텍스트 시작|>
+{answer_1}
+<|참조 컨텍스트 끝|>
 
-JSON:
+<|어시스턴트 답변 시작|>
+{answer_2}
+<|어시스턴트 답변 끝|>
+"""
+
+en = """Please act as an impartial judge and evaluate the quality of the reference context and AI assistant's response to the user prompt displayed below. Your job is to evaluate which is more accurate and useful for answering the given question.
+
+Begin your evaluation by generating your own answer to the prompt. You must provide your answers before judging.
+
+When evaluating the reference context and assistant's answer, compare both with your answer. You must identify and correct any mistakes or inaccurate information.
+
+Consider if the assistant's answer is accurate, relevant, and concise compared to the reference context. Accuracy means the answer correctly reflects the information in the reference context. Relevant means all parts of the response closely connect to both the question and reference context. Concise means the response is clear and not verbose or excessive.
+
+Evaluate how well the assistant utilized the information from the reference context, whether it added unnecessary information, or whether it missed important details.
+
+After providing your explanation, you must output one of the following choices as your final verdict with JSON format:
+
+1. Reference context is significantly better: 
+{{"reasoning": "Why reference context is significantly better...", "score": 2}}
+
+2. Reference context is slightly better: 
+{{"reasoning": "Why reference context is slightly better...", "score": 1}}
+
+3. Tie, relatively the same: 
+{{"reasoning": "Why both are similar...", "score": 0}}
+
+4. Assistant's answer is slightly better: 
+{{"reasoning": "Why assistant's answer is slightly better...", "score": -1}}
+
+5. Assistant's answer is significantly better: 
+{{"reasoning": "Why assistant's answer is significantly better...", "score": -2}}
+
+Your response and score must be provided in JSON format. The "score" should be 2 if reference context is significantly better, 1 if reference context is slightly better, 0 for a tie, -1 if assistant's answer is slightly better, and -2 if assistant's answer is significantly better.
+
+<|User Prompt|>
+{question}
+
+<|Start of Reference Context|>
+{answer_1}
+<|End of Reference Context|>
+
+<|Start of Assistant's Answer|>
+{answer_2}
+<|End of Assistant's Answer|>
 """

@@ -1,17 +1,45 @@
 from abc import abstractmethod
-from typing import Optional, Dict, Union, List, Any
+from typing import Optional, Dict, Union, List, Any, TypeVar, Callable
 from langmetrics.llmtestcase import LLMTestCase
 from langmetrics.llmdataset import LLMDataset
 from langmetrics.llmresult import LLMResult
 from langmetrics.utils import trimAndLoadJson
-import json
 import asyncio
+from tqdm.asyncio import tqdm
+
+T = TypeVar('T', bound=LLMTestCase)
 
 
 class BaseMetric:
+    def __init__(self, verbose_mode: bool = False, max_concurrency: Optional[int] = None):
+        
+        """
+        Initialize the BaseMetric.
+        
+        Args:
+            verbose_mode (bool): Whether to print detailed logs during processing
+            max_concurrency (Optional[int]): Maximum number of concurrent operations
+        """
+        self.verbose_mode = verbose_mode
+        self.semaphore = asyncio.Semaphore(max_concurrency if max_concurrency else 500)
+
 
     @abstractmethod
-    async def ameasure(self, test_case: LLMTestCase, *args, **kwargs) -> float:
+    async def ameasure(self, test_case: Union[T, List[T], LLMDataset], *args, **kwargs) -> Union[LLMResult, List[LLMResult]]:
+        """
+        Asynchronously measure the performance of a language model on given test cases.
+        
+        Args:
+            test_case: Test case(s) to evaluate
+            *args: Additional positional arguments
+            **kwargs: Additional keyword arguments
+            
+        Returns:
+            Evaluation result(s)
+            
+        Raises:
+            NotImplementedError: When not implemented by a subclass
+        """
         raise NotImplementedError(
             f"{self.__class__.__name__}을 작성하세요."
         )
@@ -19,6 +47,18 @@ class BaseMetric:
     
     @abstractmethod
     def _build_prompt(self, case: LLMTestCase):
+        """
+        Build a prompt for the given test case.
+        
+        Args:
+            case: Test case to build a prompt for
+            
+        Returns:
+            A prompt in the format expected by the language model
+            
+        Raises:
+            NotImplementedError: When not implemented by a subclass
+        """
         raise NotImplementedError(
             f"{self.__class__.__name__}을 작성하세요."
         )
@@ -32,12 +72,12 @@ class BaseMetric:
     
     def validate_testcases(self, cases: List[LLMTestCase]):
         for case in cases:
-            self.validate_testcase(case)
+            self._validate_testcase(case)
     
     @staticmethod
     def _normalize_testcases(
-        testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset]
-    ) -> List[LLMTestCase]:
+        testcase: Union[T, List[T], LLMDataset]
+    ) -> List[T]:
         """
         JudgeMetric, MCQMetric 등에서 공통으로 사용하는 
         테스트케이스 정규화 함수
@@ -99,8 +139,14 @@ class BaseMetric:
         Returns:
             any: 'answer' 키에 해당하는 값 또는 None
         """
-        parsed_output = trimAndLoadJson(output)
-        return parsed_output.get(parsed_field, None)
+        try:
+            parsed_output = trimAndLoadJson(output)
+            return parsed_output.get(parsed_field, None)
+        except Exception as e:
+            if self.verbose_mode:
+                print(f"Error parsing JSON output: {e}")
+            return None
+
     
     async def gather_with_concurrency(self, n: Optional[int], *coros: asyncio.coroutine) -> list:
         """
@@ -114,20 +160,20 @@ class BaseMetric:
             list: 모든 코루틴의 실행 결과를 포함하는 리스트.
         """
         if n is None:
-            return await asyncio.gather(*coros)
+            return await tqdm.gather(*coros)
 
         semaphore = asyncio.Semaphore(n)
 
-        async def gated_coro(semaphore: asyncio.Semaphore, coro: asyncio.coroutine) -> Any:
+        async def gated_coro(sem: asyncio.Semaphore, coro: asyncio.coroutine) -> Any:
             """
             세마포어를 사용하여 동시 실행 개수를 제한하는 내부 코루틴.
             """
-            async with semaphore:
+            async with sem:
                 return await coro
 
-        return await asyncio.gather(*(gated_coro(semaphore, c) for c in coros))
+        return await tqdm.gather(*(gated_coro(semaphore, c) for c in coros))
 
-    async def _limited_worker(self, coro: asyncio.coroutine):
+    async def _limited_task(self, coro: asyncio.coroutine):
         """
         동시 실행 개수를 제한하여 개별 코루틴을 실행하는 함수.
 
