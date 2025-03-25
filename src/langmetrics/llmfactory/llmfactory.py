@@ -92,42 +92,59 @@ class DeepseekFactory(BaseFactory):
 class LocalLLMFactory(BaseFactory):
     def _create_llm(self, config: LocalModelConfig, temperature: float, **kwargs) -> ChatOpenAI:
         print('waiting llm server boot')
-        if config.dp == 1:
-            server_process = execute_shell_command(
-        f"""CUDA_VISIBLE_DEVICES={config.gpus} vllm serve \
---model {config.model_name} \
+        
+        # Base command
+        base_command = f"""CUDA_VISIBLE_DEVICES={config.gpus} vllm serve {config.model_name} \
 --host 0.0.0.0 \
 --port {config.port} \
 --tensor-parallel-size {config.tp} \
 --seed {config.seed} \
 --gpu-memory-utilization {config.mem_fraction_static} \
 --max-num-seqs {config.max_running_request}"""
-    )
-        elif config.dp > 1:
-            server_process = execute_shell_command(
-        f"""CUDA_VISIBLE_DEVICES={config.gpus} vllm serve \
---model {config.model_name} \
---host 0.0.0.0 \
---port {config.port} \
---tensor-parallel-size {config.tp} \
---seed {config.seed} \
---gpu-memory-utilization {config.mem_fraction_static} \
---max-num-seqs {config.max_running_request}"""
-    )
+        
+        # Add LoRA support if configured
+        if config.lora_model_path:
+            # Enable LoRA
+            base_command += " --enable-lora"
+                
+            # Add LoRA module (using the new JSON format if lora_name is provided)
+            if config.lora_name:
+                lora_name = config.lora_name
+                lora_module = f" --lora-modules '{{\
+\"name\": \"{lora_name}\", \
+\"path\": \"{config.lora_model_path}\", \
+\"base_model_name\": \"{config.model_name}\"\
+}}'"
+                base_command += lora_module
+            else:
+                lora_name = "lora-adapter"  # Default name if not specified
+                lora_module = f" --lora-modules '{{\
+\"name\": \"{lora_name}\", \
+\"path\": \"{config.lora_model_path}\", \
+\"base_model_name\": \"{config.model_name}\"\
+}}'"
+                base_command += lora_module
+            
+        
+        # Execute the command
+        server_process = execute_shell_command(base_command)
                     
         wait_for_server(f"http://localhost:{config.port}")
+        
+        # Determine which model to use (base model or LoRA model)
+        model_name = lora_name if config.lora_model_path else config.model_name
         
         # LocalChatOpenAI는 shutdown_server를 지원함.
         return LocalChatOpenAI(
             temperature=temperature,
-            model=config.model_name,
+            model=model_name,
             base_url=f"http://localhost:{config.port}/v1",
             api_key="EMPTY",
             max_tokens=config.max_tokens,
             server_process=server_process,
             **kwargs,
         )
-
+    
 
         
 

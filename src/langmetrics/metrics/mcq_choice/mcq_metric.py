@@ -110,6 +110,7 @@ class MCQMetric(BaseMetric):
         self, 
         testcase: Union[LLMTestCase, List[LLMTestCase], LLMDataset],
         max_concurrent: Optional[int] = None,
+        **kwargs
     ) -> Union[LLMResult, List[LLMResult]]:
         """
         모델 답변의 정확도를 비동기적으로 평가합니다.
@@ -156,14 +157,14 @@ class MCQMetric(BaseMetric):
         # validate case
         self.validate_testcases(testcases)
         # validate case
-        tasks = [self._a_process_single_case(case) for case in testcases]
+        tasks = [self._a_process_single_case(case, **kwargs) for case in testcases]
         results = await self.gather_with_concurrency(
             max_concurrent or self.semaphore._value, 
             *tasks
         )
         return results[0] if isinstance(testcase, LLMTestCase) else ResultDataset(results)
 
-    async def _a_process_single_case(self, case: LLMTestCase) -> LLMResult:
+    async def _a_process_single_case(self, case: LLMTestCase, **kwargs) -> LLMResult:
         """
         단일 테스트케이스를 비동기적으로 처리합니다.
         
@@ -189,7 +190,7 @@ class MCQMetric(BaseMetric):
                         "No output provided and no output model set. "
                         "Either provide an output or set an output model."
                     )
-                response = await self._a_generate_answer_one_case(case)
+                response = await self._a_generate_answer_one_case(case, **kwargs)
             else:  # Use existing output
                 response = AIMessage(
                     content=case.output,
@@ -261,7 +262,7 @@ class MCQMetric(BaseMetric):
                 additional_info = additional_info
             )
 
-    async def _a_generate_answer_one_case(self, case: LLMTestCase) -> AIMessage:
+    async def _a_generate_answer_one_case(self, case: LLMTestCase , **kwargs) -> AIMessage:
         """
         LLM을 사용하여 비동기적으로 답변을 생성합니다.
         
@@ -282,7 +283,7 @@ class MCQMetric(BaseMetric):
             >>> print(response.content)  # JSON 형식의 응답 내용
         """
         prompt = self._build_prompt(case)
-        response = await self.output_model.ainvoke(prompt, parse_json=True)
+        response = await self.output_model.ainvoke(prompt, parse_json=True, **kwargs)
         
         response.additional_kwargs['input_with_prompt'] = prompt[1].content # prompt 입력값 가져오기
         

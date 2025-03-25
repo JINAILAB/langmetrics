@@ -35,7 +35,7 @@ dependencies = [
     "langchain-google-genai",
     "polars==1.21.0",
     "aiolimiter",
-    "ahocorasic",
+    "pyahocorasick",
     "toml",
     "tomlkit",
     "rich"

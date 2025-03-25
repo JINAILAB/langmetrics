@@ -170,7 +170,7 @@ def load_toml(file_path):
         return toml.load(f)
         
         
-def execute_shell_command(command: str) -> subprocess.Popen:
+def execute_shell_command(command: str, logging=False) -> subprocess.Popen:
     """
     Execute a shell command and return the process handle.
 
@@ -188,8 +188,11 @@ def execute_shell_command(command: str) -> subprocess.Popen:
     command = re.sub(r'\\', ' ', command)
     # 연속된 공백을 하나의 공백으로 줄이고 양쪽 공백 제거
     command = re.sub(r'\s+', ' ', command).strip()
-
-    return subprocess.Popen(command, shell=True, text=True, stderr=subprocess.STDOUT)
+    
+    if logging:
+        return subprocess.Popen(command, shell=True, text=True, stdout=subprocess.stdout, stderr=subprocess.stdout)
+    else:
+        return subprocess.Popen(command, shell=True, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
 
 def wait_for_server(base_url: str, timeout: int = None) -> None:
     """서버의 /v1/models 엔드포인트를 주기적으로 확인하여 준비될 때까지 기다립니다.

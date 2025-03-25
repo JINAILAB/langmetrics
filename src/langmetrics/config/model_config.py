@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 from abc import ABC, abstractmethod
 from langchain.chat_models.base import BaseChatModel
 
@@ -62,6 +63,8 @@ class NaverModelConfig(ModelConfig):
 @dataclass
 class LocalModelConfig:
     model_name: str
+    lora_model_path: Optional[str] = None
+    lora_name: Optional[str] = None  # Name for the LoRA adapter
     port : int = 30000
     max_tokens: int = 4096
     gpus : str = "2,3"
