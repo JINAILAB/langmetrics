@@ -116,7 +116,10 @@ def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-
+def load_jsonl(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return [json.loads(line) for line in f]
+    
 def save_json(data, file_path, indent=4, ensure_ascii=False):
     """
     데이터를 JSON 파일로 저장하는 함수
