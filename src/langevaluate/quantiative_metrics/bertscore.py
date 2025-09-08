@@ -1,18 +1,16 @@
 import torch
-import torch.nn as nn
 from bert_score import BERTScorer
 
 
-class BertScore(nn.Module):
+class BertScore:
     def __init__(self):
-        super(BertScore, self).__init__()
         with torch.no_grad():
             self.bert_scorer = BERTScorer(
                 model_type="distilbert-base-uncased",
                 batch_size=8,
             )
 
-    def forward(self, refs, hyps):
+    def __call__(self, refs, hyps):
         p, r, f = self.bert_scorer.score(
             cands=hyps,
             refs=refs,

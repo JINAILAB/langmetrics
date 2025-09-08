@@ -1,11 +1,9 @@
-import torch
-import torch.nn as nn
 import tiktoken
 import numpy as np
 from typing import List, Union, Dict, Optional
 
 
-class EfficientScore(nn.Module):
+class EfficientScore:
     """
     EfficientScore - 텍스트의 토큰 길이 기반 효율성 점수
     
@@ -21,7 +19,6 @@ class EfficientScore(nn.Module):
             model_name: tiktoken 인코딩에 사용할 모델 이름
                        ("gpt-4", "gpt-3.5-turbo", "text-davinci-003" 등)
         """
-        super(EfficientScore, self).__init__()
         
         # tiktoken 인코더 초기화
         try:
@@ -58,7 +55,7 @@ class EfficientScore(nn.Module):
             return 0
         return len(self.encoder.encode(text))
     
-    def forward(
+    def __call__(
         self, 
         texts: Union[str, List[str]]
     ) -> Union[Dict[str, float], List[Dict[str, float]]]:
@@ -103,9 +100,7 @@ if __name__ == "__main__":
     result = scorer(text)
     print("=== Single Text Evaluation ===")
     print(f"Text: {text[:100]}...")
-    print(f"Efficiency Score: {result['score']:.4f}")
-    print(f"Token Count: {result['token_count']}")
-    print(f"Efficiency Ratio: {result['efficiency_ratio']:.4f}")
+    print(f"Efficiency Score: {result:.4f}")
     print()
     
     # 예제 2: 여러 텍스트 평가
@@ -117,9 +112,6 @@ if __name__ == "__main__":
     
     results = scorer(texts)
     print("=== Multiple Texts Evaluation ===")
-    for i, result in enumerate(results['individual_results']):
-        print(f"Text {i+1}: Score={result['score']:.4f}, Tokens={result['token_count']}")
-    print(f"\nMean Score: {results['mean_score']:.4f}")
-    print(f"Std Score: {results['std_score']:.4f}")
-    print(f"Total Tokens: {results['total_tokens']}")
+    for i, score in enumerate(results):
+        print(f"Text {i+1}: Score={score:.4f}")
     print()
