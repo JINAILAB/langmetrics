@@ -1,6 +1,6 @@
-# LangMetrics
+# LangEvaluate
 
-LangMetrics는 LLM(Large Language Model)의 성능을 평가하기 위한 Python 라이브러리입니다. 다양한 평가 메트릭과 데이터셋 관리 기능을 제공하여 LLM의 성능을 체계적으로 분석할 수 있습니다.
+LangEvaluate는 LLM(Large Language Model)의 성능을 평가하기 위한 Python 라이브러리입니다. 다양한 평가 메트릭과 데이터셋 관리 기능을 제공하여 LLM의 성능을 체계적으로 분석할 수 있습니다.
 
 ## 주요 기능
 

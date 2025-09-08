@@ -1,11 +1,11 @@
-from langmetrics.llmdataset import LLMDataset
-from langmetrics.llmtestcase import LLMTestCase
+from langevaluate.llmdataset import LLMDataset
+from langevaluate.llmtestcase import LLMTestCase
 from datasets import load_dataset
 import pandas as pd
 from dotenv import load_dotenv
-from langmetrics.llmfactory import LLMFactory
-from langmetrics.config import ModelConfig, LocalModelConfig
-from langmetrics.metrics import MCQMetric
+from langevaluate.llmfactory import LLMFactory
+from langevaluate.config import ModelConfig, LocalModelConfig
+from langevaluate.metrics import MCQMetric
 
 load_dotenv(override=True)
 

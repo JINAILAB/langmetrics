@@ -3,45 +3,53 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "langmetrics"
-version = "0.0.0"
+name = "langevaluate"
+version = "0.1.3"
 authors = [
-  { name="Jin", email="nwirandx@gmail.com" },
+  { name="JIN PARK", email="nwirandx@gmail.com" },
 ]
 description = "LLM 기반의 자동 평가 시스템"
 readme = "Readme.md"
 requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["LLM", "evaluation", "langchain", "NLP", "benchmarks"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "langchain>=0.1.0",
-    "langchain-community==0.3.14",
-    "langchain-openai>=0.3.0",
-    "langchain-anthropic==0.3.1",
-    "langchain-deepseek-official==0.1.0",
-    "pandas>=2.0.0",
-    "datasets>=2.14.0",
-    "asyncio>=3.4.3",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.1",
-    "pytest-cov>=4.1.0",
-    "python-dotenv>=1.0.0",
-    "sqlalchemy>=1.4.0",
+    "langchain>=0.3,<0.4",
+    "langchain-community>=0.3,<0.4",
+    "langchain-openai>=0.3,<0.4",
+    "langchain-anthropic>=0.3,<0.4",
+    "langchain-deepseek-official>=0.1,<0.2",
+    "pandas>=2.0.0,<3.0.0",
+    "datasets>=2.14.0,<2.15.0",
+    "python-dotenv>=1.0.0,<1.2.0",
+    "sqlalchemy>=1.4.0,<1.5.0",
     "vllm",
-    "psycopg2-binary>=2.9.0",
+    "psycopg2-binary>=2.9.0,<2.10.0",
     "langchain-google-genai",
-    "polars==1.21.0",
+    "polars==1.21.0,<1.22.0",
     "aiolimiter",
-    "pyahocorasick",
-    "toml",
-    "tomlkit",
     "rich",
-    "ipykernel",
+    "tomlkit",
+    "toml",
+    "bert-score>=0.3.13",
 ]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.21.1",
+  "pytest-cov>=4.1.0",
+  "ipykernel",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/langevaluate"]
 
 [project.urls]
 "Homepage" = "https://github.com/JINAILAB/langmetrics"
-"Bug Tracker" = "https://github.com/yourusername/langmetrics/issues"
+"Bug Tracker" = "https://github.com/JINAILAB/langmetrics/issues"
