@@ -6,3 +6,5 @@ from langevaluate.metrics.judge.judge_template import JudgeTemplate
 from langevaluate.metrics.judge.judge_metric import JudgeMetric
 from langevaluate.metrics.arena.arena_metric import ArenaMetric
 from langevaluate.metrics.arena.arena_template import ArenaTemplate
+from langevaluate.metrics.summary_judge.summary_judge_metric import SummaryJudgeMetric
+from langevaluate.metrics.summary_judge.summary_judge_template import SummaryJudgeTemplate
