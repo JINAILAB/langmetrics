@@ -358,5 +358,5 @@ class LLMFactory:
             config = model_name_or_config
         
         factory = cls._get_factory(config.provider)
-        return factory.create_llm(config, temperature, rpm=rpm, max_retries, **kwargs)
+        return factory.create_llm(config, temperature, rpm=rpm, max_retries=max_retries, **kwargs)
 

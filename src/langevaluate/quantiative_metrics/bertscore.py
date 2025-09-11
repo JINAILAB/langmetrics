@@ -3,11 +3,11 @@ from bert_score import BERTScorer
 
 
 class BertScore:
-    def __init__(self):
+    def __init__(self, model_type="distilbert-base-uncased", batch_size=16):
         with torch.no_grad():
             self.bert_scorer = BERTScorer(
-                model_type="distilbert-base-uncased",
-                batch_size=8,
+                model_type=model_type,
+                batch_size=batch_size,
             )
 
     def __call__(self, refs, hyps):
