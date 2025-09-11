@@ -14,16 +14,16 @@ Question: The response is irrelevant to the user's summarization request or fail
 1 : The summary is poor — it barely addresses the content, with little relevance or coherence.
 0 : The response is irrelevant to the summarization task or fails to address the request.
 
-**IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
+**IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
 {{    
     "reasoning": "<your_reasoning. Think step by step deeply.>. So the score is <your_score>",
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -47,7 +47,7 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 요약이 매우 미약하여 내용과 거의 관련이 없고 일관성이 떨어집니다.
 0 : 응답이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.    
 
-**중요: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
+**중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
 {{
 "reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 점수는 <점수>입니다.",
@@ -55,7 +55,7 @@ JSON 예시:
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -81,16 +81,20 @@ Question: The response is irrelevant to the user's summarization request or fail
 1 : The summary is poor — it barely addresses the content, with little relevance or coherence.
 0 : The response is irrelevant to the summarization task or fails to address the request.
 
-**IMPORTANT: Please make sure to only return in JSON format.
+**IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
 {{
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
+
+<summary>
+{summary}
+</summary>
 
 JSON:"""
 
@@ -109,14 +113,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 요약이 매우 미약하여 내용과 거의 관련이 없고 일관성이 떨어집니다.
 0 : 응답이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 
+**중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
 {{
 "score": "<점수>"
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -142,16 +146,16 @@ Question: The response is evaluated for its practicality and clarity as a medica
 1 : The response is poor — very unclear or incoherent, with little clinical value.
 0 : The response is irrelevant to clinical clarity or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
+**IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
 {{    
     "reasoning": "<your_reasoning. Think step by step deeply.>. So the score is <your_score>",
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -175,7 +179,7 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 응답이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
 0 : 응답이 임상적 전달력 평가와 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
+**중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
 {{
 "reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 점수는 <점수>입니다.",
@@ -183,7 +187,7 @@ JSON 예시:
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -211,15 +215,15 @@ Question: The response is evaluated for its practicality and clarity as a medica
 1 : The response is poor — very unclear or incoherent, with little clinical value.
 0 : The response is irrelevant to clinical clarity or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format.
+**IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
 {{
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -243,14 +247,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 응답이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
 0 : 응답이 임상적 전달력 평가와 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 
+**중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
 {{
 "score": "<점수>"
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -275,16 +279,16 @@ Question: The summary is evaluated for redundancy, verbosity, and conciseness �
 1 : The summary is poor in conciseness — highly repetitive, wordy, or padded with irrelevant information.
 0 : The summary is irrelevant to the conciseness evaluation or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
+**IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
 {{    
     "reasoning": "<your_reasoning. Think step by step deeply.>. So the score is <your_score>",
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -308,7 +312,7 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 응답이 간결성이 매우 부족하며 과도하게 반복적이거나 불필요하게 길게 서술되어 있습니다.
 0 : 응답이 간결성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
+**중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
 {{
 "reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 점수는 <점수>입니다.",
@@ -316,7 +320,7 @@ JSON 예시:
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -341,15 +345,15 @@ Question: The response is evaluated for redundancy, verbosity, and conciseness �
 1 : The response is poor in conciseness — highly repetitive, wordy, or padded with irrelevant information.
 0 : The response is irrelevant to the conciseness evaluation or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format.
+**IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
 {{
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -373,14 +377,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 요약이 간결성이 매우 부족하며 과도하게 반복적이거나 불필요하게 길게 서술되어 있습니다.
 0 : 요약이 간결성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 
+**중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
 {{
 "score": "<점수>"
 }}
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -406,16 +410,16 @@ Question: The summary is evaluated for accuracy — whether it contains accurate
 1 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
 0 : The summary is irrelevant to the accuracy evaluation or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
+**IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
 {{    
     "reasoning": "<your_reasoning. Think step by step deeply.>. So the score is <your score>",
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -438,7 +442,7 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 요약이 완전히 정확하고, 증거에 기반하며, 의학적 오정보나 환각이 전혀 없습니다.
 0 : 요약이 정확성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
+**중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
 {{
 "reasoning": "<추론_과정. 차근차근 생각하세요.>. 따라서 점수는 <점수>입니다.",
@@ -446,7 +450,7 @@ JSON 예시:
 }}
 
 <user_assistant_conversation>
-Human: {clinical history}
+Human: {clinical_history}
 Assistant: {summary}
 </user_assistant_conversation>
 
@@ -468,15 +472,15 @@ Question: The summary is evaluated for accuracy — whether it contains accurate
 1 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
 0 : The summary is irrelevant to the accuracy evaluation or fails to address the question.
 
-**IMPORTANT: Please make sure to only return in JSON format.
+**IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
 {{
     "score": "<your_score>"
 }}
-**</task>
+</task>
 
 <clinical_history>
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>
@@ -499,14 +503,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 1 : 응답이 완전히 정확하고, 증거에 기반하며, 의학적 오정보나 환각이 전혀 없습니다.
 0 : 응답이 질문을 거부하거나 사용자의 질문과 관련이 없습니다.
 
-**중요: JSON 형식으로만 반환하도록 하세요. 
+**중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
 {{
 "score": "<점수>"
 }}
 
 <clinical_history>  
-{clinical history}
+{clinical_history}
 </clinical_history>
 
 <summary>

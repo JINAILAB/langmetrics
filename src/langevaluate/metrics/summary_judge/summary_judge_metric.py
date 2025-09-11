@@ -313,7 +313,7 @@ class SummaryJudgeMetric(BaseMetric):
             input=case.input,
             output=case.output,
             expected_output=None,
-            score=score,
+            score=int(score),
             metadata=metadata,
             additional_info=additional_info
         )
