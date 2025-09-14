@@ -15,7 +15,7 @@ class BaseFactory(ABC):
     각 AI 제공업체별 LLM 인스턴스 생성을 위한 인터페이스를 정의합니다.
     팩토리 메서드 패턴을 사용하여 구체적인 LLM 구현체 생성을 서브클래스에 위임합니다.
     """
-    def create_llm(self, config: ModelConfig, temperature: float = 1.0 , rpm: int = None, max_retries: int = 60, **kwargs) -> Any:
+    def create_llm(self, config: ModelConfig, temperature: float = 1.0 , rpm: int = None, max_retries: int = 3, **kwargs) -> Any:
         """LLM 인스턴스를 생성하고 ainvoke 메서드를 process_single_input으로 래핑합니다."""
         if rpm:
             rate_limiter = self._create_rate_limiter(rpm)

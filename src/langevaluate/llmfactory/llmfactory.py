@@ -323,7 +323,7 @@ class LLMFactory:
         return cls._factories[provider]
 
     @classmethod
-    def create_llm(cls, model_name_or_config: str | ModelConfig | LocalModelConfig, temperature: float = 0.7, rpm: int = None, max_retries: int = 10, **kwargs) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX, ChatGoogleGenerativeAI, ChatDeepSeek, LocalChatOpenAI]:
+    def create_llm(cls, model_name_or_config: str | ModelConfig | LocalModelConfig, temperature: float = 0.7, rpm: int = None, max_retries: int = 3, **kwargs) -> Union[ChatOpenAI, ChatAnthropic, ChatClovaX, ChatGoogleGenerativeAI, ChatDeepSeek, LocalChatOpenAI]:
         """LLM 인스턴스를 생성하는 통합 메서드
         
         등록된 모델명이나 커스텀 설정으로 LLM 인스턴스를 생성합니다.
