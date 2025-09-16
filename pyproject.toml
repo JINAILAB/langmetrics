@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "langevaluate"
-version = "0.1.15"
+version = "0.2.4"
 authors = [
   { name="JIN PARK", email="nwirandx@gmail.com" },
 ]
 description = "LLM 기반의 자동 평가 시스템"
 readme = "Readme.md"
-requires-python = ">=3.8,<=3.10"
+requires-python = ">=3.8,<3.11"
 license = { text = "MIT" }
 keywords = ["LLM", "evaluation", "langchain", "NLP", "benchmarks"]
 classifiers = [
@@ -19,32 +19,23 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "langchain>=0.3,<0.4",
-    "langchain-community>=0.3,<0.4", 
-    "langchain-openai>=0.3,<0.4",
-    "langchain-anthropic>=0.3,<0.4",
-    "langchain-deepseek-official>=0.1,<0.2",
+    "langchain>=0.3",
+    "langchain-community>=0.3", 
+    "langchain-openai>=0.3",
+    "langchain-anthropic>=0.3",
+    "langchain-deepseek-official>=0.1",
     "langchain-google-genai>=0.1.0",
     "pandas>=2.0.0,<3.0.0",
-    "datasets>=2.14.0,<2.15.0",
-    "python-dotenv>=1.0.0,<1.2.0",
-    "psycopg2-binary>=2.9.0,<2.10.0",
-    "polars>=1.21.0,<1.22.0",
+    "datasets>=2.14.0",
+    "python-dotenv>=1.0.0",
+    "psycopg2-binary>=2.9.0",
+    "polars>=1.21.0",
     "aiolimiter>=1.0.0",
     "rich>=13.0.0",
     "tomlkit>=0.12.0",
     "toml>=0.10.0",
     "bert-score==0.3.12",
-    "spacy>=3.4.4,<3.5.0",
-    "qquickumls>=1.4.2,<1.5.0",
-    "scispacy>=0.5.1,<0.6.0",
-    "BLEURT>=0.0.2,<0.1.0",
-    "evaluate>=0.4.0,<0.5.0",
-    "scikit-learn>=1.3.2,<1.4.0",
-    "matplotlib>=3.7.0,<3.9.0",
-    "numpy>=1.24.0,<1.27.0",
-    "scipy>=1.10.0,<1.14.0",
-    "nltk>=3.8.1,<3.9.0",
+    "spacy>=3.4.4",
 ]
 
 [project.optional-dependencies]
