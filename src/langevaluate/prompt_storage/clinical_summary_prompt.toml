@@ -12,7 +12,7 @@ Question: The response is irrelevant to the user's summarization request or fail
 3 : The summary is fair — it includes some important points but omits or distorts others, leading to partial understanding.
 2 : The summary is weak — it captures only a small portion of the original meaning, or is vague and confusing.
 1 : The summary is poor — it barely addresses the content, with little relevance or coherence.
-0 : The response is irrelevant to the summarization task or fails to address the request.
+0 : The response is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
@@ -38,14 +38,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 추론과 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 clinical history과 관련이 없거나 질문을 다루지 않습니다.
+설명: 요약이 clinical history과 관련이 없거나 질문을 다루지 않습니다.
 
 5 : 요약이 매우 우수하여 핵심 정보를 명확하고 간결하며 자연스럽게 모두 전달합니다.
 4 : 요약이 좋으며 핵심 내용을 대부분 전달하지만 일부 뉘앙스나 명확성이 부족할 수 있습니다.
 3 : 요약이 보통 수준으로 중요한 부분은 포함했지만 일부는 누락되거나 왜곡되어 부분적인 이해만 가능합니다.
 2 : 요약이 부족하여 원래 의미의 작은 부분만 전달하거나 모호하고 혼란스럽습니다.
 1 : 요약이 매우 미약하여 내용과 거의 관련이 없고 일관성이 떨어집니다.
-0 : 응답이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.    
+0 : 요약이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.    
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
@@ -79,7 +79,7 @@ Question: The response is irrelevant to the user's summarization request or fail
 3 : The summary is fair — it includes some important points but omits or distorts others, leading to partial understanding.
 2 : The summary is weak — it captures only a small portion of the original meaning, or is vague and confusing.
 1 : The summary is poor — it barely addresses the content, with little relevance or coherence.
-0 : The response is irrelevant to the summarization task or fails to address the request.
+0 : The response is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
@@ -104,14 +104,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 clinical history과 관련이 없거나 질문을 다루지 않습니다.
+설명: 요약이 clinical history과 관련이 없거나 질문을 다루지 않습니다.
 
 5 : 요약이 매우 우수하여 핵심 정보를 명확하고 간결하며 자연스럽게 모두 전달합니다.
 4 : 요약이 좋으며 핵심 내용을 대부분 전달하지만 일부 뉘앙스나 명확성이 부족할 수 있습니다.
 3 : 요약이 보통 수준으로 중요한 부분은 포함했지만 일부는 누락되거나 왜곡되어 부분적인 이해만 가능합니다.
 2 : 요약이 부족하여 원래 의미의 작은 부분만 전달하거나 모호하고 혼란스럽습니다.
 1 : 요약이 매우 미약하여 내용과 거의 관련이 없고 일관성이 떨어집니다.
-0 : 응답이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.
+0 : 요약이 clinical history과 무관하거나 질문을 전혀 다루지 않습니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
@@ -137,14 +137,14 @@ en = """<role>Evaluate the clinical clarity of the AI assistant’s summary of t
 Provide your reasoning and score with only the integer (0, 1, 2, 3, 4, 5).
 
 Evaluation Rubric:
-Question: The response is evaluated for its practicality and clarity as a medical document — whether a healthcare professional would clearly understand it.
+Question: The summary is evaluated for its practicality and clarity as a medical document — whether a healthcare professional would clearly understand it.
 
-5 : The response is extremely clear and clinically practical — highly precise, unambiguous, and immediately usable by a medical professional.
-4 : The response is clear and clinically useful, though it may lack some nuance or detail that would maximize professional clarity.
-3 : The response is moderately clear — it conveys the main points but with some ambiguity or missing details that reduce clinical utility.
-2 : The response is somewhat unclear — significant ambiguity or vagueness limits its practical use in a medical context.
-1 : The response is poor — very unclear or incoherent, with little clinical value.
-0 : The response is irrelevant to clinical clarity or fails to address the question.
+5 : The summary is extremely clear and clinically practical — highly precise, unambiguous, and immediately usable by a medical professional.
+4 : The summary is clear and clinically useful, though it may lack some nuance or detail that would maximize professional clarity.
+3 : The summary is moderately clear — it conveys the main points but with some ambiguity or missing details that reduce clinical utility.
+2 : The summary is somewhat unclear — significant ambiguity or vagueness limits its practical use in a medical context.
+1 : The summary is poor — very unclear or incoherent, with little clinical value.
+0 : The summary is irrelevant to clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
@@ -170,14 +170,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 추론과 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 의료문서로서 실용적이고 이해하기 쉬운지를 평가합니다 — 의료인이 읽었을 때 명확히 이해되는가?
+설명: 요약이 의료문서로서 실용적이고 이해하기 쉬운지를 평가합니다 — 의료인이 읽었을 때 명확히 이해되는가?
 
-5 : 응답이 매우 명확하고 임상적으로 실용적이며, 정확하고 모호함이 없고 의료인이 즉시 활용할 수 있습니다.
-4 : 응답이 명확하고 실용적이나, 세부적 뉘앙스나 추가 설명이 부족할 수 있습니다.
-3 : 응답이 어느 정도 명확하지만 다소 모호하거나 세부가 빠져 있어 임상적 활용도가 줄어듭니다.
-2 : 응답이 다소 불명확하여 의료 문맥에서 활용하기에 어려움이 큽니다.
-1 : 응답이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
-0 : 응답이 임상적 전달력 평가와 무관하거나 질문을 전혀 다루지 않습니다.
+5 : 요약이 매우 명확하고 임상적으로 실용적이며, 정확하고 모호함이 없고 의료인이 즉시 활용할 수 있습니다.
+4 : 요약이 명확하고 실용적이나, 세부적 뉘앙스나 추가 설명이 부족할 수 있습니다.
+3 : 요약이 어느 정도 명확하지만 다소 모호하거나 세부가 빠져 있어 임상적 활용도가 줄어듭니다.
+2 : 요약이 다소 불명확하여 의료 문맥에서 활용하기에 어려움이 큽니다.
+1 : 요약이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
+0 : 요약이 clinical history와 무관합니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
@@ -213,7 +213,7 @@ Question: The response is evaluated for its practicality and clarity as a medica
 3 : The response is moderately clear — it conveys the main points but with some ambiguity or missing details that reduce clinical utility.
 2 : The response is somewhat unclear — significant ambiguity or vagueness limits its practical use in a medical context.
 1 : The response is poor — very unclear or incoherent, with little clinical value.
-0 : The response is irrelevant to clinical clarity or fails to address the question.
+0 : The response is irrelevant to clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
@@ -238,14 +238,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 의료문서로서 실용적이고 이해하기 쉬운지를 평가합니다 — 의료인이 읽었을 때 명확히 이해되는가?
+설명: 요약이 의료문서로서 실용적이고 이해하기 쉬운지를 평가합니다 — 의료인이 읽었을 때 명확히 이해되는가?
 
-5 : 응답이 매우 명확하고 임상적으로 실용적이며, 정확하고 모호함이 없고 의료인이 즉시 활용할 수 있습니다.
-4 : 응답이 명확하고 실용적이나, 세부적 뉘앙스나 추가 설명이 부족할 수 있습니다.
-3 : 응답이 어느 정도 명확하지만 다소 모호하거나 세부가 빠져 있어 임상적 활용도가 줄어듭니다.
-2 : 응답이 다소 불명확하여 의료 문맥에서 활용하기에 어려움이 큽니다.
-1 : 응답이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
-0 : 응답이 임상적 전달력 평가와 무관하거나 질문을 전혀 다루지 않습니다.
+5 : 요약이 매우 명확하고 임상적으로 실용적이며, 정확하고 모호함이 없고 의료인이 즉시 활용할 수 있습니다.
+4 : 요약이 명확하고 실용적이나, 세부적 뉘앙스나 추가 설명이 부족할 수 있습니다.
+3 : 요약이 어느 정도 명확하지만 다소 모호하거나 세부가 빠져 있어 임상적 활용도가 줄어듭니다.
+2 : 요약이 다소 불명확하여 의료 문맥에서 활용하기에 어려움이 큽니다.
+1 : 요약이 매우 불명확하거나 일관성이 부족하여 임상적 가치가 거의 없습니다.
+0 : 요약이 clinical history와 무관한 내용입니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
@@ -277,7 +277,7 @@ Question: The summary is evaluated for redundancy, verbosity, and conciseness �
 3 : The summary is moderately concise — it communicates the main points but contains noticeable repetition or verbosity.
 2 : The summary is somewhat verbose — excessive detail or redundancy interferes with clarity and brevity.
 1 : The summary is poor in conciseness — highly repetitive, wordy, or padded with irrelevant information.
-0 : The summary is irrelevant to the conciseness evaluation or fails to address the question.
+0 : The summary is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
@@ -303,14 +303,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 추론과 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 불필요한 반복이나 군더더기 없이 간결한지를 평가합니다.
+설명: 요약이 불필요한 반복이나 군더더기 없이 간결한지를 평가합니다.
 
-5 : 응답이 매우 간결하며 불필요한 반복이나 군더더기가 전혀 없습니다.
-4 : 응답이 전반적으로 간결하지만 약간의 중복이나 장황한 표현이 있을 수 있습니다.
-3 : 응답이 어느 정도 간결하지만 눈에 띄는 반복이나 장황함이 포함되어 있습니다.
-2 : 응답이 다소 장황하여 불필요한 반복이나 군더더기가 명확히 드러납니다.
-1 : 응답이 간결성이 매우 부족하며 과도하게 반복적이거나 불필요하게 길게 서술되어 있습니다.
-0 : 응답이 간결성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
+5 : 요약이 매우 간결하며 불필요한 반복이나 군더더기가 전혀 없습니다.
+4 : 요약이 전반적으로 간결하지만 약간의 중복이나 장황한 표현이 있을 수 있습니다.
+3 : 요약이 어느 정도 간결하지만 눈에 띄는 반복이나 장황함이 포함되어 있습니다.
+2 : 요약이 다소 장황하여 불필요한 반복이나 군더더기가 명확히 드러납니다.
+1 : 요약이 간결성이 매우 부족하며 과도하게 반복적이거나 불필요하게 길게 서술되어 있습니다.
+0 : 요약이 clinical history와 무관한 내용입니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
@@ -343,7 +343,7 @@ Question: The response is evaluated for redundancy, verbosity, and conciseness �
 3 : The response is moderately concise — it communicates the main points but contains noticeable repetition or verbosity.
 2 : The response is somewhat verbose — excessive detail or redundancy interferes with clarity and brevity.
 1 : The response is poor in conciseness — highly repetitive, wordy, or padded with irrelevant information.
-0 : The response is irrelevant to the conciseness evaluation or fails to address the question.
+0 : The response is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
@@ -375,7 +375,7 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 3 : 요약이 어느 정도 간결하지만 눈에 띄는 반복이나 장황함이 포함되어 있습니다.
 2 : 요약이 다소 장황하여 불필요한 반복이나 군더더기가 명확히 드러납니다.
 1 : 요약이 간결성이 매우 부족하며 과도하게 반복적이거나 불필요하게 길게 서술되어 있습니다.
-0 : 요약이 간결성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
+0 : 요약이 clinical history와 무관합니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
@@ -403,12 +403,12 @@ Provide your reasoning and score with only the integer (0, 1, 2, 3, 4, 5).
 Evaluation Rubric:
 Question: The summary is evaluated for accuracy — whether it contains accurate medical information or hallucinations.
 
-5 : The summary contains critical medical inaccuracies or hallucinations that could directly misinform or harm the user.
-4 : The summary includes significant medical inaccuracies or misleading information that may result in confusion or improper actions.
+5 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
+4 : The summary is mostly accurate with minor errors or unclear medical statements that could cause slight misunderstanding.
 3 : The summary has moderate inaccuracies or partially incorrect medical information but is not immediately harmful.
-2 : The summary is mostly accurate with minor errors or unclear medical statements that could cause slight misunderstanding.
-1 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
-0 : The summary is irrelevant to the accuracy evaluation or fails to address the question.
+2 : The summary includes significant medical inaccuracies or misleading information that may result in confusion or improper actions.
+1 : The summary contains critical medical inaccuracies or hallucinations that could directly misinform or harm the user.
+0 : The summary is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format, with the 'reasoning' key providing the reasoning.
 Example JSON:
@@ -435,12 +435,12 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 평가 기준
 설명: 요약이 정확한 의학적 정보나 환각을 포함하는지를 평가합니다.
 
-5 : 요약에 심각한 의학적 부정확성이나 환각이 포함되어 있어 사용자를 직접적으로 오도하거나 해를 끼칠 수 있습니다.
-4 : 요약에 중대한 의학적 부정확성이나 오해의 소지가 있는 정보가 포함되어 있어 혼란이나 부적절한 행동을 초래할 수 있습니다.
-3 : 요약에 중간 정도의 부정확성이나 부분적으로 잘못된 의학 정보가 있어 즉각적인 해를 끼치지는 않습니다.
-2 : 요약이 대체로 정확하나, 약간의 오류나 불명확한 의학적 진술로 인해 약간의 오해를 일으킬 수 있습니다.
-1 : 요약이 완전히 정확하고, 증거에 기반하며, 의학적 오정보나 환각이 전혀 없습니다.
-0 : 요약이 정확성 평가와 무관하거나 질문을 전혀 다루지 않습니다.
+5: 완전히 정확하고 근거 기반이며 의료 오정보나 허위정보가 전혀 없는 요약입니다.
+4: 대부분 정확하지만 약간의 오류나 불분명한 의료 진술로 경미한 오해를 일으킬 수 있습니다.
+3: 적당한 부정확성이나 부분적으로 잘못된 의료 정보가 있지만 즉각적으로 해롭지는 않습니다.
+2: 상당한 의료 부정확성이나 오해의 소지가 있는 정보로 혼란이나 부적절한 행동을 초래할 수 있습니다.
+1: 사용자에게 직접적으로 잘못된 정보를 제공하거나 해를 끼칠 수 있는 심각한 의료 부정확성이나 허위정보를 포함합니다.
+0: 요약이 clinical history와 무관합니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 'reasoning' 키는 추론을 제공합니다.
 JSON 예시:
@@ -465,12 +465,12 @@ Provide your reasoning and score with only the integer (0, 1, 2, 3, 4, 5).
 Evaluation Rubric:
 Question: The summary is evaluated for accuracy — whether it contains accurate medical information or hallucinations.
 
-5 : The summary contains critical medical inaccuracies or hallucinations that could directly misinform or harm the user.
-4 : The summary includes significant medical inaccuracies or misleading information that may result in confusion or improper actions.
+5 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
+4 : The summary is mostly accurate with minor errors or unclear medical statements that could cause slight misunderstanding.
 3 : The summary has moderate inaccuracies or partially incorrect medical information but is not immediately harmful.
-2 : The summary is mostly accurate with minor errors or unclear medical statements that could cause slight misunderstanding.
-1 : The summary is completely accurate, evidence-based, and free from any medical misinformation or hallucinations.
-0 : The summary is irrelevant to the accuracy evaluation or fails to address the question.
+2 : The summary includes significant medical inaccuracies or misleading information that may result in confusion or improper actions.
+1 : The summary contains critical medical inaccuracies or hallucinations that could directly misinform or harm the user.
+0 : The summary is irrelevant to the clinical history.
 
 **IMPORTANT**: Please make sure to only return in JSON format.
 Example JSON:
@@ -494,14 +494,14 @@ ko = """<role>아래 표시된 clinical history에 대한 AI assistant의 요약
 당신의 추론과 점수를 정수(0, 1, 2, 3, 4, 5)로만 제공하세요.
 
 평가 기준
-설명: 응답이 질문을 거부하거나 사용자의 질문과 관련이 없습니다.
+설명: 요약이 정확한 의학적 정보나 환각을 포함하는지를 평가합니다.
 
-5 : 응답에 사용자를 직접적으로 오도하거나 해를 끼칠 수 있는 심각한 의학적 부정확성이나 환각이 포함되어 있습니다.
-4 : 응답에 혼란이나 부적절한 행동을 초래할 수 있는 중대한 의학적 부정확성이나 오해의 소지가 있는 정보가 포함되어 있습니다.
-3 : 응답에 중간 정도의 부정확성이나 부분적으로 잘못된 의학 정보가 있지만, 즉각적인 해를 끼치지는 않습니다.
-2 : 응답이 대체로 정확하나, 약간의 오류나 불명확한 의학적 진술로 인해 약간의 오해를 일으킬 수 있습니다.
-1 : 응답이 완전히 정확하고, 증거에 기반하며, 의학적 오정보나 환각이 전혀 없습니다.
-0 : 응답이 질문을 거부하거나 사용자의 질문과 관련이 없습니다.
+5: 완전히 정확하고 근거 기반이며 의료 오정보나 허위정보가 전혀 없는 요약입니다.
+4: 대부분 정확하지만 약간의 오류나 불분명한 의료 진술로 경미한 오해를 일으킬 수 있습니다.
+3: 적당한 부정확성이나 부분적으로 잘못된 의료 정보가 있지만 즉각적으로 해롭지는 않습니다.
+2: 상당한 의료 부정확성이나 오해의 소지가 있는 정보로 혼란이나 부적절한 행동을 초래할 수 있습니다.
+1: 사용자에게 직접적으로 잘못된 정보를 제공하거나 해를 끼칠 수 있는 심각한 의료 부정확성이나 허위정보를 포함합니다.
+0: 요약이 clinical history와 무관합니다.
 
 **중요**: JSON 형식으로만 반환하도록 하세요. 
 JSON 예시:
