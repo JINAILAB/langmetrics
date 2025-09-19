@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "langevaluate"
-version = "0.2.9"
+version = "0.2.12"
 authors = [
   { name="JIN PARK", email="nwirandx@gmail.com" },
 ]

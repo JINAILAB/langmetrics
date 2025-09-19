@@ -312,6 +312,7 @@ class SummaryJudgeMetric(BaseMetric):
         return LLMResult(
             input=case.input,
             output=case.output,
+            scoring_model_output=evaluate_response.content,
             expected_output=None,
             score=int(score),
             metadata=metadata,
