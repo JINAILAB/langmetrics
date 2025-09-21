@@ -245,7 +245,7 @@ class SummaryJudgeMetric(BaseMetric):
             return LLMResult(
                 input=case.input,
                 output=getattr(case, 'output', ''),
-                expected_output=None,
+                expected_output=getattr(case, 'expected_output', ''),
                 score=None,
                 metadata={'error': str(e)},
                 additional_info={}
@@ -312,8 +312,8 @@ class SummaryJudgeMetric(BaseMetric):
         return LLMResult(
             input=case.input,
             output=case.output,
-            scoring_model_output=evaluate_response.content,
-            expected_output=None,
+            scoring_model_output=response.content,
+            expected_output=case.expected_output,
             score=int(score),
             metadata=metadata,
             additional_info=additional_info
@@ -365,7 +365,8 @@ class SummaryJudgeMetric(BaseMetric):
             # 평가를 위한 프롬프트 생성
             evaluation_prompt = self.template_for_judge.format_messages(
                 clinical_history=case.input,
-                summary=response.content
+                summary=response.content,
+                expected_summary=case.expected_output
             )
             
             # score_model을 사용하여 비동기적으로 평가 수행
